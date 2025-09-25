@@ -1,0 +1,50 @@
+# Dumps MusicBrainz
+/dumps/
+*.dump
+*.sql.gz
+*.tar.bz2
+
+# Fichiers binaires
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Fichiers temporaires
+*.tmp
+*.temp
+*.log
+*.cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker
+.dockerignore
+
+# Variables d'environnement sensibles
+.env.local
+.env.production
+
+# Fichiers Excel temporaires
+~$*.xlsx
+~$*.xls
+
+# Sauvegardes
+*.bak
+*.backup

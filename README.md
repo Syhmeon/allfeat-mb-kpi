@@ -10,7 +10,7 @@ Ce projet configure un environnement PostgreSQL local (via Docker) avec le dump 
 - **IDs manquants** : Identifier les artistes sans identifiants externes
 - **Doublons ISRC** : Détecter les codes ISRC dupliqués
 - **Incohérences** : Trouver les enregistrements sans œuvres associées
-- **Niveaux de confiance** : Calculer des scores de confiance par entité (Artist, Work, Recording, Release) avec logique catégorielle Phase 1 (High/Medium/Low) et score numérique Phase 2 (0-1) basés sur la présence d'identifiants normatifs et la cohérence des liens
+- **Niveaux de confiance** : Calculer des scores de confiance par entité (Artist, Work, Recording, Release) avec logique Phase 1 (catégorielle High/Medium/Low basée sur présence d'IDs + cohérence des liens) et Phase 2 (score numérique 0-1 avec poids explicites, mappé sur High/Medium/Low)
 
 ### Public cible
 - Équipe Data Engineering Allfeat

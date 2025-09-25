@@ -109,8 +109,41 @@ SELECT
     COUNT(*) as record_count
 FROM allfeat_kpi.confidence_artist;
 
--- Test 5: Vérifier les métadonnées
-\echo 'Test 5: Vérification des métadonnées'
+-- Test 5: Validations réalistes des données MusicBrainz
+\echo 'Test 5: Validations réalistes des données MusicBrainz'
+SELECT 
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM musicbrainz.recording WHERE isrc IS NOT NULL LIMIT 1)
+        THEN '✅ Au moins 1 enregistrement avec ISRC trouvé'
+        ELSE '❌ Aucun enregistrement avec ISRC trouvé'
+    END as test_result;
+
+SELECT 
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM musicbrainz.work WHERE iswc IS NOT NULL LIMIT 1)
+        THEN '✅ Au moins 1 œuvre avec ISWC trouvée'
+        ELSE '❌ Aucune œuvre avec ISWC trouvée'
+    END as test_result;
+
+SELECT 
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM musicbrainz.artist_isni LIMIT 1) OR EXISTS (SELECT 1 FROM musicbrainz.artist_ipi LIMIT 1)
+        THEN '✅ Au moins 1 artiste avec ISNI/IPI trouvé'
+        ELSE '❌ Aucun artiste avec ISNI/IPI trouvé'
+    END as test_result;
+
+-- Test 6: Vérification des nouvelles colonnes Phase 1+2
+\echo 'Test 6: Vérification des colonnes Phase 1+2'
+SELECT 
+    'confidence_artist' as view_name,
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'allfeat_kpi' AND table_name = 'confidence_artist' AND column_name = 'phase1_confidence_level')
+        THEN '✅ Colonnes Phase 1+2 présentes'
+        ELSE '❌ Colonnes Phase 1+2 manquantes'
+    END as test_result;
+
+-- Test 7: Vérifier les métadonnées
+\echo 'Test 7: Vérification des métadonnées'
 SELECT 
     key,
     value,
@@ -118,8 +151,8 @@ SELECT
 FROM allfeat_kpi.metadata
 ORDER BY key;
 
--- Test 6: Test de performance basique
-\echo 'Test 6: Test de performance basique'
+-- Test 8: Test de performance basique
+\echo 'Test 8: Test de performance basique'
 \timing on
 
 SELECT 'Performance test - ISRC Coverage' as test_name;
@@ -130,8 +163,8 @@ SELECT * FROM allfeat_kpi.confidence_artist LIMIT 1;
 
 \timing off
 
--- Test 7: Vérifier les échantillons
-\echo 'Test 7: Vérification des échantillons'
+-- Test 9: Vérifier les échantillons
+\echo 'Test 9: Vérification des échantillons'
 SELECT 
     'ISRC Samples' as sample_type,
     COUNT(*) as sample_count
@@ -151,8 +184,8 @@ SELECT
     COUNT(*) as sample_count
 FROM allfeat_kpi.dup_isrc_candidates_samples;
 
--- Test 8: Vérifier les statistiques générales
-\echo 'Test 8: Statistiques générales'
+-- Test 10: Vérifier les statistiques générales
+\echo 'Test 10: Statistiques générales'
 SELECT * FROM allfeat_kpi.stats_overview;
 
 \echo '🎉 Tests de validation terminés!'

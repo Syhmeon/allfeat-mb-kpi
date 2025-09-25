@@ -5,112 +5,101 @@
 -- ============================================================================
 -- PHASE 1: LOGIQUE CATÉGORIELLE EXPLICITE
 -- ============================================================================
--- High = has ISRC + Work ISWC + Artist ID (ISNI/IPI) + Release
--- Medium = ISRC + (Work OR Artist ID) OR (Work ISWC + Release)  
--- Low = else
+-- Règles basées uniquement sur la présence d'IDs et la cohérence des liens :
+-- High = Enregistrement a ISRC + Œuvre liée a ISWC + Artiste a ISNI/IPI + Présent sur Release
+-- Medium = (Enregistrement a ISRC + Œuvre liée a ISWC) OU (Enregistrement a ISRC + Présent sur Release)
+-- Low = Tous les autres cas
 
 -- ============================================================================
--- PHASE 2: LOGIQUE NUMÉRIQUE AVEC POIDS
+-- PHASE 2: LOGIQUE NUMÉRIQUE AVEC POIDS EXPLICITES
 -- ============================================================================
--- Score = 0.3 * has_isni + 0.3 * has_iswc + 0.2 * has_isrc + 0.2 * on_release
--- Seuils: >=0.8 High, >=0.4 Medium, <0.4 Low
+-- Score = 0.3 * has_isrc + 0.3 * has_iswc + 0.3 * has_artist_id + 0.1 * on_release
+-- Seuils: >=0.8 High, 0.4-0.79 Medium, <0.4 Low
 
 CREATE OR REPLACE VIEW allfeat_kpi.confidence_recording AS
-WITH recording_analysis AS (
-    -- Analyser chaque enregistrement avec ses critères de confiance
+WITH recording_criteria AS (
+    -- Analyser chaque enregistrement selon les critères de confiance
     SELECT 
         r.id as recording_id,
-        r.name as recording_name,
-        r.gid as recording_gid,
         
-        -- Critère 1: ISRC présent sur l'enregistrement
+        -- Critère 1: Enregistrement a un ISRC
         CASE WHEN r.isrc IS NOT NULL THEN 1 ELSE 0 END as has_isrc,
         
-        -- Critère 2: ISWC présent sur l'œuvre liée
+        -- Critère 2: Œuvre liée à l'enregistrement a un ISWC
         CASE WHEN EXISTS (
             SELECT 1 FROM musicbrainz.recording_work rw
             INNER JOIN musicbrainz.work w ON rw.work = w.id
             WHERE rw.recording = r.id AND w.iswc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_iswc,
         
-        -- Critère 3: Enregistrement présent sur une release
+        -- Critère 3: Artiste de l'enregistrement a des identifiants externes (ISNI ou IPI)
+        CASE WHEN EXISTS (
+            SELECT 1 FROM musicbrainz.artist_credit ac
+            INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
+            WHERE ac.id = r.artist_credit AND (
+                EXISTS (SELECT 1 FROM musicbrainz.artist_isni WHERE artist = acn.artist) OR
+                EXISTS (SELECT 1 FROM musicbrainz.artist_ipi WHERE artist = acn.artist)
+            )
+        ) THEN 1 ELSE 0 END as has_artist_id,
+        
+        -- Critère 4: Enregistrement est présent sur une release
         CASE WHEN EXISTS (
             SELECT 1 FROM musicbrainz.track t
             INNER JOIN musicbrainz.medium m ON t.medium = m.id
             INNER JOIN musicbrainz.release rel ON m.release = rel.id
             WHERE t.recording = r.id
-        ) THEN 1 ELSE 0 END as on_release,
-        
-        -- Critère 4: Artiste a un IPI
-        CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.artist_credit ac
-            INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            INNER JOIN musicbrainz.artist_ipi ai ON acn.artist = ai.artist
-            WHERE ac.id = r.artist_credit
-        ) THEN 1 ELSE 0 END as has_ipi,
-        
-        -- Critère 5: Artiste a un ISNI
-        CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.artist_credit ac
-            INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            INNER JOIN musicbrainz.artist_isni ai ON acn.artist = ai.artist
-            WHERE ac.id = r.artist_credit
-        ) THEN 1 ELSE 0 END as has_isni
+        ) THEN 1 ELSE 0 END as on_release
         
     FROM musicbrainz.recording r
     WHERE r.edits_pending = 0
 ),
 recording_confidence_calculation AS (
     SELECT 
-        ra.recording_id,
-        ra.recording_name,
-        ra.recording_gid,
-        ra.has_isrc,
-        ra.has_iswc,
-        ra.on_release,
-        ra.has_ipi,
-        ra.has_isni,
+        rc.recording_id,
+        rc.has_isrc,
+        rc.has_iswc,
+        rc.has_artist_id,
+        rc.on_release,
         
         -- Phase 1: Logique catégorielle explicite
         CASE 
-            -- High = has ISRC + Work ISWC + Artist ID (ISNI/IPI) + Release
-            WHEN ra.has_isrc = 1 AND ra.has_iswc = 1 AND (ra.has_isni = 1 OR ra.has_ipi = 1) AND ra.on_release = 1 
+            -- High = Enregistrement a ISRC + Œuvre liée a ISWC + Artiste a ISNI/IPI + Présent sur Release
+            WHEN rc.has_isrc = 1 AND rc.has_iswc = 1 AND rc.has_artist_id = 1 AND rc.on_release = 1 
             THEN 'High'
-            -- Medium = ISRC + (Work OR Artist ID) OR (Work ISWC + Release)
-            WHEN (ra.has_isrc = 1 AND (ra.has_iswc = 1 OR ra.has_isni = 1 OR ra.has_ipi = 1)) 
-              OR (ra.has_iswc = 1 AND ra.on_release = 1)
+            -- Medium = (Enregistrement a ISRC + Œuvre liée a ISWC) OU (Enregistrement a ISRC + Présent sur Release)
+            WHEN (rc.has_isrc = 1 AND rc.has_iswc = 1) OR (rc.has_isrc = 1 AND rc.on_release = 1)
             THEN 'Medium'
-            -- Low = else
+            -- Low = Tous les autres cas
             ELSE 'Low'
         END as phase1_confidence_level,
         
-        -- Phase 2: Score numérique avec poids
-        -- Score = 0.3 * has_isni + 0.3 * has_iswc + 0.2 * has_isrc + 0.2 * on_release
+        -- Phase 2: Score numérique avec poids explicites
+        -- Score = 0.3 * has_isrc + 0.3 * has_iswc + 0.3 * has_artist_id + 0.1 * on_release
         ROUND(
-            (0.3 * ra.has_isni) + 
-            (0.3 * ra.has_iswc) + 
-            (0.2 * ra.has_isrc) + 
-            (0.2 * ra.on_release), 3
+            (0.3 * rc.has_isrc) + 
+            (0.3 * rc.has_iswc) + 
+            (0.3 * rc.has_artist_id) + 
+            (0.1 * rc.on_release), 3
         ) as phase2_confidence_score,
         
         -- Phase 2: Classification basée sur le score
         CASE 
             WHEN ROUND(
-                (0.3 * ra.has_isni) + 
-                (0.3 * ra.has_iswc) + 
-                (0.2 * ra.has_isrc) + 
-                (0.2 * ra.on_release), 3
+                (0.3 * rc.has_isrc) + 
+                (0.3 * rc.has_iswc) + 
+                (0.3 * rc.has_artist_id) + 
+                (0.1 * rc.on_release), 3
             ) >= 0.8 THEN 'High'
             WHEN ROUND(
-                (0.3 * ra.has_isni) + 
-                (0.3 * ra.has_iswc) + 
-                (0.2 * ra.has_isrc) + 
-                (0.2 * ra.on_release), 3
+                (0.3 * rc.has_isrc) + 
+                (0.3 * rc.has_iswc) + 
+                (0.3 * rc.has_artist_id) + 
+                (0.1 * rc.on_release), 3
             ) >= 0.4 THEN 'Medium'
             ELSE 'Low'
         END as phase2_confidence_level
         
-    FROM recording_analysis ra
+    FROM recording_criteria rc
 ),
 recording_confidence_summary AS (
     SELECT 
@@ -132,9 +121,8 @@ recording_confidence_summary AS (
         -- Critères détaillés
         COUNT(*) FILTER (WHERE rcc.has_isrc = 1) as recordings_with_isrc,
         COUNT(*) FILTER (WHERE rcc.has_iswc = 1) as recordings_with_iswc,
-        COUNT(*) FILTER (WHERE rcc.on_release = 1) as recordings_on_release,
-        COUNT(*) FILTER (WHERE rcc.has_ipi = 1) as recordings_with_ipi,
-        COUNT(*) FILTER (WHERE rcc.has_isni = 1) as recordings_with_isni
+        COUNT(*) FILTER (WHERE rcc.has_artist_id = 1) as recordings_with_artist_id,
+        COUNT(*) FILTER (WHERE rcc.on_release = 1) as recordings_on_release
         
     FROM recording_confidence_calculation rcc
 )
@@ -162,16 +150,14 @@ SELECT
     -- Critères détaillés
     s.recordings_with_isrc,
     s.recordings_with_iswc,
+    s.recordings_with_artist_id,
     s.recordings_on_release,
-    s.recordings_with_ipi,
-    s.recordings_with_isni,
     
     -- Pourcentages de couverture des critères
     allfeat_kpi.format_percentage(s.recordings_with_isrc, s.total_recordings) as isrc_coverage_pct,
     allfeat_kpi.format_percentage(s.recordings_with_iswc, s.total_recordings) as iswc_coverage_pct,
+    allfeat_kpi.format_percentage(s.recordings_with_artist_id, s.total_recordings) as artist_id_coverage_pct,
     allfeat_kpi.format_percentage(s.recordings_on_release, s.total_recordings) as release_coverage_pct,
-    allfeat_kpi.format_percentage(s.recordings_with_ipi, s.total_recordings) as ipi_coverage_pct,
-    allfeat_kpi.format_percentage(s.recordings_with_isni, s.total_recordings) as isni_coverage_pct,
     
     -- Compatibilité ascendante: utiliser Phase 2 comme niveau principal
     CASE 
@@ -182,13 +168,13 @@ SELECT
     
     -- Métadonnées
     NOW() as calculated_at,
-    'Phase 1+2: Logique explicite ISRC+ISWC+ArtistID+Release' as scope_note
+    'Phase 1+2: Logique explicite IDs + cohérence des liens' as scope_note
 FROM recording_confidence_summary s;
 
 -- Vue détaillée pour les échantillons d'enregistrements par niveau de confiance
 CREATE OR REPLACE VIEW allfeat_kpi.confidence_recording_samples AS
-WITH recording_analysis AS (
-    -- Analyser chaque enregistrement avec ses critères de confiance
+WITH recording_criteria AS (
+    -- Analyser chaque enregistrement selon les critères de confiance
     SELECT 
         r.id as recording_id,
         r.name as recording_name,
@@ -196,95 +182,87 @@ WITH recording_analysis AS (
         r.length,
         r.isrc,
         
-        -- Critère 1: ISRC présent sur l'enregistrement
+        -- Critère 1: Enregistrement a un ISRC
         CASE WHEN r.isrc IS NOT NULL THEN 1 ELSE 0 END as has_isrc,
         
-        -- Critère 2: ISWC présent sur l'œuvre liée
+        -- Critère 2: Œuvre liée à l'enregistrement a un ISWC
         CASE WHEN EXISTS (
             SELECT 1 FROM musicbrainz.recording_work rw
             INNER JOIN musicbrainz.work w ON rw.work = w.id
             WHERE rw.recording = r.id AND w.iswc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_iswc,
         
-        -- Critère 3: Enregistrement présent sur une release
+        -- Critère 3: Artiste de l'enregistrement a des identifiants externes (ISNI ou IPI)
+        CASE WHEN EXISTS (
+            SELECT 1 FROM musicbrainz.artist_credit ac
+            INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
+            WHERE ac.id = r.artist_credit AND (
+                EXISTS (SELECT 1 FROM musicbrainz.artist_isni WHERE artist = acn.artist) OR
+                EXISTS (SELECT 1 FROM musicbrainz.artist_ipi WHERE artist = acn.artist)
+            )
+        ) THEN 1 ELSE 0 END as has_artist_id,
+        
+        -- Critère 4: Enregistrement est présent sur une release
         CASE WHEN EXISTS (
             SELECT 1 FROM musicbrainz.track t
             INNER JOIN musicbrainz.medium m ON t.medium = m.id
             INNER JOIN musicbrainz.release rel ON m.release = rel.id
             WHERE t.recording = r.id
-        ) THEN 1 ELSE 0 END as on_release,
-        
-        -- Critère 4: Artiste a un IPI
-        CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.artist_credit ac
-            INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            INNER JOIN musicbrainz.artist_ipi ai ON acn.artist = ai.artist
-            WHERE ac.id = r.artist_credit
-        ) THEN 1 ELSE 0 END as has_ipi,
-        
-        -- Critère 5: Artiste a un ISNI
-        CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.artist_credit ac
-            INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            INNER JOIN musicbrainz.artist_isni ai ON acn.artist = ai.artist
-            WHERE ac.id = r.artist_credit
-        ) THEN 1 ELSE 0 END as has_isni
+        ) THEN 1 ELSE 0 END as on_release
         
     FROM musicbrainz.recording r
     WHERE r.edits_pending = 0
 ),
 recording_confidence_calculation AS (
     SELECT 
-        ra.recording_id,
-        ra.recording_name,
-        ra.recording_gid,
-        ra.length,
-        ra.isrc,
-        ra.has_isrc,
-        ra.has_iswc,
-        ra.on_release,
-        ra.has_ipi,
-        ra.has_isni,
+        rc.recording_id,
+        rc.recording_name,
+        rc.recording_gid,
+        rc.length,
+        rc.isrc,
+        rc.has_isrc,
+        rc.has_iswc,
+        rc.has_artist_id,
+        rc.on_release,
         
         -- Phase 1: Logique catégorielle explicite
         CASE 
-            -- High = has ISRC + Work ISWC + Artist ID (ISNI/IPI) + Release
-            WHEN ra.has_isrc = 1 AND ra.has_iswc = 1 AND (ra.has_isni = 1 OR ra.has_ipi = 1) AND ra.on_release = 1 
+            -- High = Enregistrement a ISRC + Œuvre liée a ISWC + Artiste a ISNI/IPI + Présent sur Release
+            WHEN rc.has_isrc = 1 AND rc.has_iswc = 1 AND rc.has_artist_id = 1 AND rc.on_release = 1 
             THEN 'High'
-            -- Medium = ISRC + (Work OR Artist ID) OR (Work ISWC + Release)
-            WHEN (ra.has_isrc = 1 AND (ra.has_iswc = 1 OR ra.has_isni = 1 OR ra.has_ipi = 1)) 
-              OR (ra.has_iswc = 1 AND ra.on_release = 1)
+            -- Medium = (Enregistrement a ISRC + Œuvre liée a ISWC) OU (Enregistrement a ISRC + Présent sur Release)
+            WHEN (rc.has_isrc = 1 AND rc.has_iswc = 1) OR (rc.has_isrc = 1 AND rc.on_release = 1)
             THEN 'Medium'
-            -- Low = else
+            -- Low = Tous les autres cas
             ELSE 'Low'
         END as phase1_confidence_level,
         
-        -- Phase 2: Score numérique avec poids
+        -- Phase 2: Score numérique avec poids explicites
         ROUND(
-            (0.3 * ra.has_isni) + 
-            (0.3 * ra.has_iswc) + 
-            (0.2 * ra.has_isrc) + 
-            (0.2 * ra.on_release), 3
+            (0.3 * rc.has_isrc) + 
+            (0.3 * rc.has_iswc) + 
+            (0.3 * rc.has_artist_id) + 
+            (0.1 * rc.on_release), 3
         ) as phase2_confidence_score,
         
         -- Phase 2: Classification basée sur le score
         CASE 
             WHEN ROUND(
-                (0.3 * ra.has_isni) + 
-                (0.3 * ra.has_iswc) + 
-                (0.2 * ra.has_isrc) + 
-                (0.2 * ra.on_release), 3
+                (0.3 * rc.has_isrc) + 
+                (0.3 * rc.has_iswc) + 
+                (0.3 * rc.has_artist_id) + 
+                (0.1 * rc.on_release), 3
             ) >= 0.8 THEN 'High'
             WHEN ROUND(
-                (0.3 * ra.has_isni) + 
-                (0.3 * ra.has_iswc) + 
-                (0.2 * ra.has_isrc) + 
-                (0.2 * ra.on_release), 3
+                (0.3 * rc.has_isrc) + 
+                (0.3 * rc.has_iswc) + 
+                (0.3 * rc.has_artist_id) + 
+                (0.1 * rc.on_release), 3
             ) >= 0.4 THEN 'Medium'
             ELSE 'Low'
         END as phase2_confidence_level
         
-    FROM recording_analysis ra
+    FROM recording_criteria rc
 )
 SELECT 
     rcc.recording_id,
@@ -296,9 +274,8 @@ SELECT
     -- Critères détaillés
     rcc.has_isrc,
     rcc.has_iswc,
+    rcc.has_artist_id,
     rcc.on_release,
-    rcc.has_ipi,
-    rcc.has_isni,
     
     -- Phase 1: Logique catégorielle
     rcc.phase1_confidence_level,

@@ -39,7 +39,7 @@ Mettre en place un environnement PostgreSQL local avec le dump MusicBrainz et cr
 - **Œuvres** : `allfeat_kpi.confidence_work` + `allfeat_kpi.confidence_work_samples`
 - **Enregistrements** : `allfeat_kpi.confidence_recording` + `allfeat_kpi.confidence_recording_samples`
 - **Releases** : `allfeat_kpi.confidence_release` + `allfeat_kpi.confidence_release_samples`
-- **Métriques** : Niveau Phase 1 (High/Medium/Low basé sur IDs + cohérence des liens), Score Phase 2 (0–1 pondéré), Niveau Phase 2 (High/Medium/Low dérivé du score)
+- **Métriques** : Niveau Phase 1 (High/Medium/Low basé sur présence d'IDs + cohérence des liens), Score Phase 2 (0–1 pondéré avec poids explicites), Niveau Phase 2 (High/Medium/Low dérivé du score)
 
 ## 🏗️ Architecture technique
 

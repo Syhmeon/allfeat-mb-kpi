@@ -22,9 +22,27 @@ fi
 
 # Vérifier que le schéma existe
 echo "🗄️  Vérification du schéma allfeat_kpi..."
-if ! psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT 1 FROM allfeat_kpi.metadata LIMIT 1;" >/dev/null 2>&1; then
+if ! psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT 1 FROM pg_namespace WHERE nspname = 'allfeat_kpi';" >/dev/null 2>&1; then
     echo "❌ Le schéma allfeat_kpi n'existe pas. Exécutez d'abord: psql -f sql/init/00_schema.sql"
     exit 1
+fi
+
+# Vérifier que la table metadata existe, sinon la créer
+echo "📋 Vérification de la table metadata..."
+if ! psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT 1 FROM allfeat_kpi.metadata LIMIT 1;" >/dev/null 2>&1; then
+    echo "⚠️  Table metadata manquante - création automatique..."
+    psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "
+        CREATE TABLE IF NOT EXISTS allfeat_kpi.metadata (
+            key VARCHAR(255) PRIMARY KEY,
+            value TEXT,
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    "
+    if [ $? -ne 0 ]; then
+        echo "❌ Impossible de créer la table metadata"
+        exit 1
+    fi
+    echo "✅ Table metadata créée avec succès"
 fi
 
 # Appliquer les vues dans l'ordre

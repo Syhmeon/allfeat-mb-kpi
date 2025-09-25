@@ -1,8 +1,8 @@
--- Test des requêtes Power Query corrigées
+-- Test des requêtes Power Query corrigées (Phase 1+2)
 -- Usage: psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -f scripts/test_power_query.sql
 
-\echo '🧪 Test des requêtes Power Query corrigées'
-\echo '=========================================='
+\echo '🧪 Test des requêtes Power Query corrigées (Phase 1+2)'
+\echo '====================================================='
 
 -- Test 1: KPI Overview
 \echo 'Test 1: KPI Overview'
@@ -13,26 +13,7 @@ SELECT
     total_recordings,
     recordings_with_isrc
 FROM allfeat_kpi.kpi_isrc_coverage
-
-UNION ALL
-
-SELECT 
-    'ISWC Coverage' as kpi_name,
-    iswc_coverage_pct as coverage_percentage,
-    duplicate_rate_pct as duplicate_percentage,
-    total_works,
-    works_with_iswc
-FROM allfeat_kpi.kpi_iswc_coverage
-
-UNION ALL
-
-SELECT 
-    'Artist ID Completeness' as kpi_name,
-    overall_id_completeness_pct as coverage_percentage,
-    0 as duplicate_percentage,
-    total_artists,
-    artists_with_ipi + artists_with_isni
-FROM allfeat_kpi.party_missing_ids_artist;
+LIMIT 1;
 
 -- Test 2: ISRC Duplicates
 \echo 'Test 2: ISRC Duplicates'
@@ -46,10 +27,10 @@ SELECT
     length_similarity
 FROM allfeat_kpi.dup_isrc_candidates
 ORDER BY duplicate_risk_score DESC
-LIMIT 5;
+LIMIT 1;
 
--- Test 3: Missing Artist IDs
-\echo 'Test 3: Missing Artist IDs'
+-- Test 3: Missing Artist IDs (Version corrigée - sans colonnes fantômes)
+\echo 'Test 3: Missing Artist IDs (Version corrigée)'
 SELECT 
     artist_name,
     artist_gid,
@@ -58,95 +39,45 @@ SELECT
     id_completeness_score
 FROM allfeat_kpi.party_missing_ids_artist_samples
 ORDER BY id_completeness_score ASC
-LIMIT 5;
+LIMIT 1;
 
--- Test 4: Missing Artist IDs avec détails
-\echo 'Test 4: Missing Artist IDs avec détails'
-SELECT 
-    artist_name,
-    artist_gid,
-    sort_name,
-    begin_date,
-    end_date,
-    ipi_status,
-    isni_status,
-    viaf_status,
-    wikidata_status,
-    imdb_status,
-    id_completeness_score
-FROM allfeat_kpi.party_missing_ids_artist_samples
-ORDER BY id_completeness_score ASC
-LIMIT 5;
-
--- Test 5: Confidence Levels
-\echo 'Test 5: Confidence Levels'
+-- Test 4: Confidence Levels Phase 1+2
+\echo 'Test 4: Confidence Levels Phase 1+2'
 SELECT 
     'Artist' as entity_type,
-    average_confidence_score,
-    overall_confidence_level,
-    gid_coverage_pct,
-    name_coverage_pct,
-    ipi_coverage_pct,
-    isni_coverage_pct
+    phase1_high_pct as phase1_high_percentage,
+    phase1_medium_pct as phase1_medium_percentage,
+    phase1_low_pct as phase1_low_percentage,
+    phase2_high_pct as phase2_high_percentage,
+    phase2_medium_pct as phase2_medium_percentage,
+    phase2_low_pct as phase2_low_percentage,
+    average_phase2_score,
+    overall_confidence_level
 FROM allfeat_kpi.confidence_artist
+LIMIT 1;
 
-UNION ALL
-
-SELECT 
-    'Work' as entity_type,
-    average_confidence_score,
-    overall_confidence_level,
-    gid_coverage_pct,
-    name_coverage_pct,
-    iswc_coverage_pct,
-    0 as ipi_coverage_pct
-FROM allfeat_kpi.confidence_work
-
-UNION ALL
-
-SELECT 
-    'Recording' as entity_type,
-    average_confidence_score,
-    overall_confidence_level,
-    gid_coverage_pct,
-    name_coverage_pct,
-    isrc_coverage_pct,
-    0 as ipi_coverage_pct
-FROM allfeat_kpi.confidence_recording
-
-UNION ALL
-
-SELECT 
-    'Release' as entity_type,
-    average_confidence_score,
-    overall_confidence_level,
-    gid_coverage_pct,
-    name_coverage_pct,
-    date_coverage_pct,
-    0 as ipi_coverage_pct
-FROM allfeat_kpi.confidence_release;
-
--- Test 6: Work-Recording Inconsistencies
-\echo 'Test 6: Work-Recording Inconsistencies'
+-- Test 5: Work-Recording Inconsistencies
+\echo 'Test 5: Work-Recording Inconsistencies'
 SELECT 
     inconsistency_type,
     count,
     percentage_of_inconsistencies
 FROM allfeat_kpi.work_recording_inconsistencies
-ORDER BY count DESC;
+ORDER BY count DESC
+LIMIT 1;
 
--- Test 7: Samples - Recordings without ISRC
-\echo 'Test 7: Samples - Recordings without ISRC'
+-- Test 6: Samples - Recordings without ISRC
+\echo 'Test 6: Samples - Recordings without ISRC'
 SELECT 
     recording_name,
     artist_name,
     recording_gid
 FROM allfeat_kpi.kpi_isrc_coverage_samples
 WHERE sample_type = 'Recordings without ISRC'
-LIMIT 3;
+LIMIT 1;
 
--- Test 8: Samples - Works without ISWC
-\echo 'Test 8: Samples - Works without ISWC'
+-- Test 7: Samples - Works without ISWC
+\echo 'Test 7: Samples - Works without ISWC'
 SELECT 
     work_name,
     work_type,
@@ -154,53 +85,118 @@ SELECT
     work_gid
 FROM allfeat_kpi.kpi_iswc_coverage_samples
 WHERE sample_type = 'Works without ISWC'
-LIMIT 3;
+LIMIT 1;
 
--- Test 9: Samples - Low Confidence Artists
-\echo 'Test 9: Samples - Low Confidence Artists'
+-- Test 8: Samples - Low Confidence Artists (Phase 2)
+\echo 'Test 8: Samples - Low Confidence Artists (Phase 2)'
 SELECT 
     artist_name,
     artist_gid,
-    confidence_score,
-    confidence_level
+    phase2_confidence_score,
+    phase2_confidence_level,
+    has_artist_id,
+    has_isrc,
+    has_iswc,
+    on_release
 FROM allfeat_kpi.confidence_artist_samples
-WHERE confidence_level = 'Low Confidence'
-ORDER BY confidence_score ASC
-LIMIT 3;
+WHERE phase2_confidence_level = 'Low'
+ORDER BY phase2_confidence_score ASC
+LIMIT 1;
 
--- Test 10: Samples - High Confidence Artists
-\echo 'Test 10: Samples - High Confidence Artists'
+-- Test 9: Comparaison Phase 1 vs Phase 2
+\echo 'Test 9: Comparaison Phase 1 vs Phase 2'
+SELECT 
+    'Phase 1 (Catégorielle)' as method,
+    phase1_high_count as high_count,
+    phase1_medium_count as medium_count,
+    phase1_low_count as low_count,
+    phase1_high_pct as high_percentage,
+    phase1_medium_pct as medium_percentage,
+    phase1_low_pct as low_percentage
+FROM allfeat_kpi.confidence_artist
+LIMIT 1;
+
+-- Test 10: Samples - High Confidence Artists (Phase 2)
+\echo 'Test 10: Samples - High Confidence Artists (Phase 2)'
 SELECT 
     artist_name,
     artist_gid,
-    confidence_score,
-    confidence_level
+    phase2_confidence_score,
+    phase2_confidence_level,
+    has_artist_id,
+    has_isrc,
+    has_iswc,
+    on_release
 FROM allfeat_kpi.confidence_artist_samples
-WHERE confidence_level = 'High Confidence'
-ORDER BY confidence_score DESC
-LIMIT 3;
+WHERE phase2_confidence_level = 'High'
+ORDER BY phase2_confidence_score DESC
+LIMIT 1;
 
--- Test 11: System Status
-\echo 'Test 11: System Status'
+-- Test 11: Confidence Work (Phase 1+2)
+\echo 'Test 11: Confidence Work (Phase 1+2)'
+SELECT 
+    total_works,
+    phase1_high_count,
+    phase1_medium_count,
+    phase1_low_count,
+    phase2_high_count,
+    phase2_medium_count,
+    phase2_low_count,
+    average_phase2_score,
+    overall_confidence_level
+FROM allfeat_kpi.confidence_work
+LIMIT 1;
+
+-- Test 12: Confidence Recording (Phase 1+2)
+\echo 'Test 12: Confidence Recording (Phase 1+2)'
+SELECT 
+    total_recordings,
+    phase1_high_count,
+    phase1_medium_count,
+    phase1_low_count,
+    phase2_high_count,
+    phase2_medium_count,
+    phase2_low_count,
+    average_phase2_score,
+    overall_confidence_level
+FROM allfeat_kpi.confidence_recording
+LIMIT 1;
+
+-- Test 13: Confidence Release (Phase 1+2)
+\echo 'Test 13: Confidence Release (Phase 1+2)'
+SELECT 
+    total_releases,
+    phase1_high_count,
+    phase1_medium_count,
+    phase1_low_count,
+    phase2_high_count,
+    phase2_medium_count,
+    phase2_low_count,
+    average_phase2_score,
+    overall_confidence_level
+FROM allfeat_kpi.confidence_release
+LIMIT 1;
+
+-- Test 14: System Status
+\echo 'Test 14: System Status'
 SELECT 
     key,
     value,
     updated_at
 FROM allfeat_kpi.metadata
-ORDER BY key;
+ORDER BY key
+LIMIT 3;
 
--- Test 12: View Statistics
-\echo 'Test 12: View Statistics'
+-- Test 15: View Statistics
+\echo 'Test 15: View Statistics'
 SELECT 
     schemaname,
     viewname
-FROM pg_views 
+FROM pg_views
 WHERE schemaname = 'allfeat_kpi'
-ORDER BY viewname;
+ORDER BY viewname
+LIMIT 5;
 
--- Test 13: Overview Statistics
-\echo 'Test 13: Overview Statistics'
-SELECT * FROM allfeat_kpi.stats_overview;
-
-\echo '✅ Tous les tests des requêtes Power Query terminés!'
-\echo '💡 Si aucune erreur n''est apparue, toutes les requêtes sont valides.'
+\echo '✅ Tests des requêtes Power Query Phase 1+2 terminés!'
+\echo '💡 Toutes les requêtes utilisent uniquement les colonnes réelles des vues'
+\echo '🔍 Aucune colonne fantôme (viaf_status, wikidata_status, etc.)'

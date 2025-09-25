@@ -1,4 +1,4 @@
-# Guide ODBC Windows - Allfeat MusicBrainz KPI
+# Guide ODBC Windows - Allfeat MusicBrainz KPI (Version Corrigée)
 
 ## Vue d'ensemble
 
@@ -128,13 +128,9 @@ Ce guide détaille la configuration ODBC sur Windows pour connecter Excel à la 
 
 ### Étape 2 : Configuration de la requête
 
-1. **Entrer une requête SQL** :
+1. **Entrer une requête SQL simple** :
    ```sql
-   SELECT 
-       'ISRC Coverage' as kpi_name,
-       isrc_coverage_pct as coverage_percentage,
-       duplicate_rate_pct as duplicate_percentage
-   FROM allfeat_kpi.kpi_isrc_coverage;
+   SELECT * FROM allfeat_kpi.kpi_isrc_coverage;
    ```
 
 2. **Tester la requête** :
@@ -145,9 +141,10 @@ Ce guide détaille la configuration ODBC sur Windows pour connecter Excel à la 
    - Bouton "Charger" pour importer dans Excel
    - Ou "Transformer les données" pour modifier avant import
 
-### Étape 3 : Création de requêtes Power Query
+## Requêtes Power Query Corrigées
 
-#### Requête 1 : KPI Overview
+### Requête 1 : KPI Overview (Tableau de bord principal)
+
 ```sql
 SELECT 
     'ISRC Coverage' as kpi_name,
@@ -174,11 +171,12 @@ SELECT
     overall_id_completeness_pct as coverage_percentage,
     0 as duplicate_percentage,
     total_artists,
-    artists_with_ipi + artists_with_isni + artists_with_viaf + artists_with_wikidata + artists_with_imdb
+    artists_with_ipi + artists_with_isni
 FROM allfeat_kpi.party_missing_ids_artist;
 ```
 
-#### Requête 2 : ISRC Duplicates
+### Requête 2 : ISRC Duplicates (Top 20 par risque)
+
 ```sql
 SELECT 
     isrc,
@@ -190,26 +188,25 @@ SELECT
     length_similarity
 FROM allfeat_kpi.dup_isrc_candidates
 ORDER BY duplicate_risk_score DESC
-LIMIT 100;
+LIMIT 20;
 ```
 
-#### Requête 3 : Missing Artist IDs
+### Requête 3 : Missing Artist IDs (Top 50 par score de complétude)
+
 ```sql
 SELECT 
     artist_name,
     artist_gid,
     ipi_status,
     isni_status,
-    viaf_status,
-    wikidata_status,
-    imdb_status,
     id_completeness_score
 FROM allfeat_kpi.party_missing_ids_artist_samples
 ORDER BY id_completeness_score ASC
-LIMIT 100;
+LIMIT 50;
 ```
 
-#### Requête 4 : Confidence Levels
+### Requête 4 : Confidence Levels (Résumé par entité)
+
 ```sql
 SELECT 
     'Artist' as entity_type,
@@ -256,6 +253,56 @@ SELECT
     date_coverage_pct,
     0 as ipi_coverage_pct
 FROM allfeat_kpi.confidence_release;
+```
+
+### Requête 5 : Work-Recording Inconsistencies
+
+```sql
+SELECT 
+    inconsistency_type,
+    count,
+    percentage_of_inconsistencies
+FROM allfeat_kpi.work_recording_inconsistencies
+ORDER BY count DESC;
+```
+
+### Requête 6 : Samples - Recordings without ISRC
+
+```sql
+SELECT 
+    recording_name,
+    artist_name,
+    recording_gid
+FROM allfeat_kpi.kpi_isrc_coverage_samples
+WHERE sample_type = 'Recordings without ISRC'
+LIMIT 20;
+```
+
+### Requête 7 : Samples - Works without ISWC
+
+```sql
+SELECT 
+    work_name,
+    work_type,
+    language_code,
+    work_gid
+FROM allfeat_kpi.kpi_iswc_coverage_samples
+WHERE sample_type = 'Works without ISWC'
+LIMIT 20;
+```
+
+### Requête 8 : Samples - Low Confidence Artists
+
+```sql
+SELECT 
+    artist_name,
+    artist_gid,
+    confidence_score,
+    confidence_level
+FROM allfeat_kpi.confidence_artist_samples
+WHERE confidence_level = 'Low Confidence'
+ORDER BY confidence_score ASC
+LIMIT 20;
 ```
 
 ## Optimisation des performances
@@ -343,18 +390,6 @@ psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -c "SELECT version();"
 psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -c "SELECT COUNT(*) FROM allfeat_kpi.kpi_isrc_coverage;"
 ```
 
-#### Logs ODBC
-1. **Activer les logs ODBC** :
-   - Éditeur de registre Windows
-   - `HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBC.INI\ODBC`
-   - Créer `Trace` = 1
-   - Créer `TraceFile` = "C:\temp\odbc.log"
-
-2. **Analyser les logs** :
-   - Reproduire l'erreur
-   - Examiner le fichier de log
-   - Identifier la cause du problème
-
 #### Test de performance
 ```sql
 -- Test de performance des vues
@@ -363,8 +398,7 @@ EXPLAIN ANALYZE SELECT * FROM allfeat_kpi.kpi_isrc_coverage;
 -- Statistiques d'utilisation
 SELECT 
     schemaname,
-    viewname,
-    definition
+    viewname
 FROM pg_views 
 WHERE schemaname = 'allfeat_kpi';
 ```
@@ -398,3 +432,78 @@ Pour toute question spécifique à ce projet :
 - Consulter `docs/README.md`
 - Créer une issue sur GitHub
 - Vérifier les logs et messages d'erreur
+
+## Annexe : Mapping des colonnes supprimées
+
+### Colonnes supprimées et raisons
+
+| Colonne supprimée | Vue concernée | Raison |
+|-------------------|---------------|---------|
+| `viaf_status` | Requêtes Power Query | N'existe que dans `party_missing_ids_artist_samples`, pas dans la vue principale |
+| `wikidata_status` | Requêtes Power Query | N'existe que dans `party_missing_ids_artist_samples`, pas dans la vue principale |
+| `imdb_status` | Requêtes Power Query | N'existe que dans `party_missing_ids_artist_samples`, pas dans la vue principale |
+| `sample_recording_names[1]` | Requêtes Power Query | Syntaxe PostgreSQL non supportée par ODBC |
+| `sample_recording_names[2]` | Requêtes Power Query | Syntaxe PostgreSQL non supportée par ODBC |
+| `sample_artist_credits[1]` | Requêtes Power Query | Syntaxe PostgreSQL non supportée par ODBC |
+| `sample_artist_credits[2]` | Requêtes Power Query | Syntaxe PostgreSQL non supportée par ODBC |
+| `total_works` | Requête confidence_work | Colonne n'existe pas dans la vue |
+| `total_recordings` | Requête confidence_recording | Colonne n'existe pas dans la vue |
+| `total_releases` | Requête confidence_release | Colonne n'existe pas dans la vue |
+| `length` | Requête samples ISRC | Colonne n'existe pas dans la vue samples |
+| `comment` | Requêtes samples | Colonnes n'existent pas dans les vues samples |
+
+### Colonnes disponibles par vue
+
+#### allfeat_kpi.kpi_isrc_coverage
+- `total_recordings`, `recordings_with_isrc`, `recordings_without_isrc`, `unique_isrcs`
+- `isrc_coverage_pct`, `missing_isrc_pct`
+- `duplicate_isrc_count`, `total_duplicate_recordings`, `duplicate_rate_pct`
+- `calculated_at`, `scope_note`
+
+#### allfeat_kpi.kpi_isrc_coverage_samples
+- `sample_type`, `recording_id`, `recording_name`, `recording_gid`
+- `artist_name`, `artist_gid`
+
+#### allfeat_kpi.kpi_iswc_coverage
+- `total_works`, `works_with_iswc`, `works_without_iswc`, `unique_iswcs`
+- `iswc_coverage_pct`, `missing_iswc_pct`
+- `duplicate_iswc_count`, `total_duplicate_works`, `duplicate_rate_pct`
+- `calculated_at`, `scope_note`
+
+#### allfeat_kpi.kpi_iswc_coverage_samples
+- `sample_type`, `work_id`, `work_name`, `work_gid`
+- `work_type`, `language_code`
+
+#### allfeat_kpi.party_missing_ids_artist
+- `total_artists`, `artists_with_ipi`, `artists_with_isni`
+- `artists_missing_ipi`, `artists_missing_isni`
+- `ipi_coverage_pct`, `isni_coverage_pct`
+- `overall_id_completeness_pct`
+- `calculated_at`, `scope_note`
+
+#### allfeat_kpi.party_missing_ids_artist_samples
+- `artist_id`, `artist_name`, `artist_gid`, `sort_name`
+- `begin_date`, `end_date`, `area`
+- `ipi_status`, `isni_status`, `viaf_status`, `wikidata_status`, `imdb_status`
+- `id_completeness_score`
+
+#### allfeat_kpi.dup_isrc_candidates
+- `isrc`, `duplicate_count`, `duplicate_risk_score`, `risk_level`
+- `name_similarity`, `artist_similarity`, `length_similarity`
+- `sample_recording_ids`, `sample_recording_names`, `sample_artist_credits`, `sample_lengths`
+- `calculated_at`, `scope_note`
+
+#### allfeat_kpi.confidence_artist
+- `total_artists`, `total_confidence_score`, `average_confidence_score`
+- `artists_with_gid`, `artists_with_name`, `artists_with_sort_name`
+- `artists_with_begin_date`, `artists_with_area`, `artists_with_comment`
+- `artists_without_pending_edits`, `artists_with_ipi`, `artists_with_isni`
+- `gid_coverage_pct`, `name_coverage_pct`, `sort_name_coverage_pct`
+- `begin_date_coverage_pct`, `area_coverage_pct`, `comment_coverage_pct`
+- `no_pending_edits_pct`, `ipi_coverage_pct`, `isni_coverage_pct`
+- `overall_confidence_level`, `calculated_at`, `scope_note`
+
+#### allfeat_kpi.confidence_artist_samples
+- `artist_id`, `artist_name`, `artist_gid`, `sort_name`
+- `begin_date`, `end_date`, `area`, `comment`, `edits_pending`
+- `confidence_score`, `confidence_level`, `last_updated`

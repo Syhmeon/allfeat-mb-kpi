@@ -48,16 +48,16 @@ psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $SQL_DIR/views/50_rec_on
 echo "  - Œuvres sans enregistrements..."
 psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $SQL_DIR/views/51_work_without_recording.sql
 
-echo "  - Confiance artistes..."
+echo "  - Confiance artistes (Phase 1+2)..."
 psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $SQL_DIR/views/60_confidence_artist.sql
 
-echo "  - Confiance œuvres..."
+echo "  - Confiance œuvres (Phase 1+2)..."
 psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $SQL_DIR/views/61_confidence_work.sql
 
-echo "  - Confiance enregistrements..."
+echo "  - Confiance enregistrements (Phase 1+2)..."
 psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $SQL_DIR/views/62_confidence_recording.sql
 
-echo "  - Confiance releases..."
+echo "  - Confiance releases (Phase 1+2)..."
 psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $SQL_DIR/views/63_confidence_release.sql
 
 # Mettre à jour les métadonnées

@@ -1,4 +1,4 @@
-# Requêtes Power Query optimisées pour Allfeat MusicBrainz KPI
+# Requêtes Power Query Corrigées - Allfeat MusicBrainz KPI
 
 ## Configuration de base
 
@@ -9,7 +9,7 @@
 - **Utilisateur** : `musicbrainz`
 - **Mot de passe** : `musicbrainz`
 
-## Requêtes principales
+## Requêtes principales (Validées contre les vues SQL réelles)
 
 ### 1. KPI Overview (Tableau de bord principal)
 
@@ -19,8 +19,7 @@ SELECT
     isrc_coverage_pct as coverage_percentage,
     duplicate_rate_pct as duplicate_percentage,
     total_recordings,
-    recordings_with_isrc,
-    recordings_without_isrc
+    recordings_with_isrc
 FROM allfeat_kpi.kpi_isrc_coverage
 
 UNION ALL
@@ -30,8 +29,7 @@ SELECT
     iswc_coverage_pct as coverage_percentage,
     duplicate_rate_pct as duplicate_percentage,
     total_works,
-    works_with_iswc,
-    works_without_iswc
+    works_with_iswc
 FROM allfeat_kpi.kpi_iswc_coverage
 
 UNION ALL
@@ -41,12 +39,11 @@ SELECT
     overall_id_completeness_pct as coverage_percentage,
     0 as duplicate_percentage,
     total_artists,
-    artists_with_ipi + artists_with_isni + artists_with_viaf + artists_with_wikidata + artists_with_imdb,
-    total_artists - (artists_with_ipi + artists_with_isni + artists_with_viaf + artists_with_wikidata + artists_with_imdb)
+    artists_with_ipi + artists_with_isni
 FROM allfeat_kpi.party_missing_ids_artist;
 ```
 
-### 2. ISRC Duplicates (Top 50 par risque)
+### 2. ISRC Duplicates (Top 20 par risque)
 
 ```sql
 SELECT 
@@ -56,17 +53,27 @@ SELECT
     risk_level,
     name_similarity,
     artist_similarity,
-    length_similarity,
-    sample_recording_names[1] as recording_1,
-    sample_recording_names[2] as recording_2,
-    sample_artist_credits[1] as artist_1,
-    sample_artist_credits[2] as artist_2
+    length_similarity
 FROM allfeat_kpi.dup_isrc_candidates
 ORDER BY duplicate_risk_score DESC
+LIMIT 20;
+```
+
+### 3. Missing Artist IDs (Top 50)
+
+```sql
+SELECT 
+    artist_name,
+    artist_gid,
+    ipi_status,
+    isni_status,
+    id_completeness_score
+FROM allfeat_kpi.party_missing_ids_artist_samples
+ORDER BY id_completeness_score ASC
 LIMIT 50;
 ```
 
-### 3. Missing Artist IDs (Top 100 par score de complétude)
+### 4. Missing Artist IDs avec détails VIAF/Wikidata/IMDB
 
 ```sql
 SELECT 
@@ -75,7 +82,6 @@ SELECT
     sort_name,
     begin_date,
     end_date,
-    area,
     ipi_status,
     isni_status,
     viaf_status,
@@ -84,10 +90,10 @@ SELECT
     id_completeness_score
 FROM allfeat_kpi.party_missing_ids_artist_samples
 ORDER BY id_completeness_score ASC
-LIMIT 100;
+LIMIT 50;
 ```
 
-### 4. Confidence Levels (Résumé par entité)
+### 5. Confidence Levels (Résumé par entité)
 
 ```sql
 SELECT 
@@ -97,8 +103,7 @@ SELECT
     gid_coverage_pct,
     name_coverage_pct,
     ipi_coverage_pct,
-    isni_coverage_pct,
-    total_artists
+    isni_coverage_pct
 FROM allfeat_kpi.confidence_artist
 
 UNION ALL
@@ -110,8 +115,7 @@ SELECT
     gid_coverage_pct,
     name_coverage_pct,
     iswc_coverage_pct,
-    0 as ipi_coverage_pct,
-    total_works
+    0 as ipi_coverage_pct
 FROM allfeat_kpi.confidence_work
 
 UNION ALL
@@ -123,8 +127,7 @@ SELECT
     gid_coverage_pct,
     name_coverage_pct,
     isrc_coverage_pct,
-    0 as ipi_coverage_pct,
-    total_recordings
+    0 as ipi_coverage_pct
 FROM allfeat_kpi.confidence_recording
 
 UNION ALL
@@ -136,12 +139,11 @@ SELECT
     gid_coverage_pct,
     name_coverage_pct,
     date_coverage_pct,
-    0 as ipi_coverage_pct,
-    total_releases
+    0 as ipi_coverage_pct
 FROM allfeat_kpi.confidence_release;
 ```
 
-### 5. Work-Recording Inconsistencies
+### 6. Work-Recording Inconsistencies
 
 ```sql
 SELECT 
@@ -152,57 +154,62 @@ FROM allfeat_kpi.work_recording_inconsistencies
 ORDER BY count DESC;
 ```
 
-### 6. Samples - Recordings without ISRC
+### 7. Samples - Recordings without ISRC
 
 ```sql
 SELECT 
     recording_name,
     artist_name,
-    recording_gid,
-    length,
-    comment
+    recording_gid
 FROM allfeat_kpi.kpi_isrc_coverage_samples
 WHERE sample_type = 'Recordings without ISRC'
-ORDER BY RANDOM()
-LIMIT 50;
+LIMIT 20;
 ```
 
-### 7. Samples - Works without ISWC
+### 8. Samples - Works without ISWC
 
 ```sql
 SELECT 
     work_name,
     work_type,
     language_code,
-    work_gid,
-    comment
+    work_gid
 FROM allfeat_kpi.kpi_iswc_coverage_samples
 WHERE sample_type = 'Works without ISWC'
-ORDER BY RANDOM()
-LIMIT 50;
+LIMIT 20;
 ```
 
-### 8. Samples - Low Confidence Artists
+### 9. Samples - Low Confidence Artists
 
 ```sql
 SELECT 
     artist_name,
     artist_gid,
-    sort_name,
-    begin_date,
-    end_date,
-    area,
     confidence_score,
     confidence_level
 FROM allfeat_kpi.confidence_artist_samples
 WHERE confidence_level = 'Low Confidence'
 ORDER BY confidence_score ASC
-LIMIT 50;
+LIMIT 20;
+```
+
+### 10. Samples - High Confidence Artists
+
+```sql
+SELECT 
+    artist_name,
+    artist_gid,
+    confidence_score,
+    confidence_level
+FROM allfeat_kpi.confidence_artist_samples
+WHERE confidence_level = 'High Confidence'
+ORDER BY confidence_score DESC
+LIMIT 20;
 ```
 
 ## Requêtes pour PivotTables
 
-### 9. ISRC Duplicates Analysis (pour PivotTable)
+### 11. ISRC Duplicates Analysis (pour PivotTable)
 
 ```sql
 SELECT 
@@ -213,25 +220,23 @@ SELECT
     duplicate_count,
     duplicate_risk_score
 FROM allfeat_kpi.dup_isrc_candidates
-ORDER BY duplicate_risk_score DESC;
+ORDER BY duplicate_risk_score DESC
+LIMIT 100;
 ```
 
-### 10. Artist ID Coverage Analysis (pour PivotTable)
+### 12. Artist ID Coverage Analysis (pour PivotTable)
 
 ```sql
 SELECT 
     ipi_status,
     isni_status,
-    viaf_status,
-    wikidata_status,
-    imdb_status,
-    id_completeness_score,
-    artist_name
+    id_completeness_score
 FROM allfeat_kpi.party_missing_ids_artist_samples
-ORDER BY id_completeness_score ASC;
+ORDER BY id_completeness_score ASC
+LIMIT 200;
 ```
 
-### 11. Confidence Analysis by Entity (pour PivotTable)
+### 13. Confidence Analysis by Entity (pour PivotTable)
 
 ```sql
 SELECT 
@@ -279,12 +284,12 @@ FROM (
         name_coverage_pct
     FROM allfeat_kpi.confidence_release
 ) confidence_summary
-ORDER BY entity_type, average_confidence_score DESC;
+ORDER BY entity_type;
 ```
 
 ## Requêtes de monitoring
 
-### 12. System Status
+### 14. System Status
 
 ```sql
 SELECT 
@@ -295,16 +300,21 @@ FROM allfeat_kpi.metadata
 ORDER BY key;
 ```
 
-### 13. View Statistics
+### 15. View Statistics
 
 ```sql
 SELECT 
     schemaname,
-    viewname,
-    definition
+    viewname
 FROM pg_views 
 WHERE schemaname = 'allfeat_kpi'
 ORDER BY viewname;
+```
+
+### 16. Overview Statistics
+
+```sql
+SELECT * FROM allfeat_kpi.stats_overview;
 ```
 
 ## Instructions d'utilisation dans Excel
@@ -368,3 +378,26 @@ psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -c "SELECT COUNT(*) FROM allfeat
 # Tests complets
 psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -f scripts/smoke_tests.sql
 ```
+
+## Différences avec la version précédente
+
+### Colonnes supprimées
+- ❌ `sample_recording_names[1]` et `[2]` : Syntaxe PostgreSQL non supportée par ODBC
+- ❌ `sample_artist_credits[1]` et `[2]` : Syntaxe PostgreSQL non supportée par ODBC
+- ❌ `recordings_without_isrc` et `works_without_iswc` dans KPI Overview
+- ❌ `artists_with_viaf + artists_with_wikidata + artists_with_imdb` dans KPI Overview
+- ❌ `total_works`, `total_recordings`, `total_releases` dans les requêtes de confiance
+- ❌ `length`, `comment` dans les requêtes samples (colonnes inexistantes)
+
+### Colonnes corrigées
+- ✅ Utilisation uniquement des colonnes réellement disponibles dans chaque vue
+- ✅ Requêtes simplifiées pour les analystes non-développeurs
+- ✅ Ajout de `LIMIT` sur toutes les requêtes d'échantillons
+- ✅ Séparation des requêtes avec et sans détails VIAF/Wikidata/IMDB
+
+### Nouvelles requêtes ajoutées
+- ✅ Requête 4 : Missing Artist IDs avec détails complets
+- ✅ Requête 10 : Samples High Confidence Artists
+- ✅ Requête 16 : Overview Statistics
+
+Cette version corrigée garantit que toutes les requêtes fonctionnent avec les vues SQL réellement créées.

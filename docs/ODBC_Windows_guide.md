@@ -205,53 +205,61 @@ ORDER BY id_completeness_score ASC
 LIMIT 50;
 ```
 
-### Requête 4 : Confidence Levels (Résumé par entité)
+### Requête 4 : Confidence Levels (Phase 1 + Phase 2 par entité)
 
 ```sql
 SELECT 
     'Artist' as entity_type,
-    average_confidence_score,
-    overall_confidence_level,
-    gid_coverage_pct,
-    name_coverage_pct,
-    ipi_coverage_pct,
-    isni_coverage_pct
+    phase1_high_pct as phase1_high_percentage,
+    phase1_medium_pct as phase1_medium_percentage,
+    phase1_low_pct as phase1_low_percentage,
+    phase2_high_pct as phase2_high_percentage,
+    phase2_medium_pct as phase2_medium_percentage,
+    phase2_low_pct as phase2_low_percentage,
+    average_phase2_score,
+    overall_confidence_level
 FROM allfeat_kpi.confidence_artist
 
 UNION ALL
 
 SELECT 
     'Work' as entity_type,
-    average_confidence_score,
-    overall_confidence_level,
-    gid_coverage_pct,
-    name_coverage_pct,
-    iswc_coverage_pct,
-    0 as ipi_coverage_pct
+    phase1_high_pct as phase1_high_percentage,
+    phase1_medium_pct as phase1_medium_percentage,
+    phase1_low_pct as phase1_low_percentage,
+    phase2_high_pct as phase2_high_percentage,
+    phase2_medium_pct as phase2_medium_percentage,
+    phase2_low_pct as phase2_low_percentage,
+    average_phase2_score,
+    overall_confidence_level
 FROM allfeat_kpi.confidence_work
 
 UNION ALL
 
 SELECT 
     'Recording' as entity_type,
-    average_confidence_score,
-    overall_confidence_level,
-    gid_coverage_pct,
-    name_coverage_pct,
-    isrc_coverage_pct,
-    0 as ipi_coverage_pct
+    phase1_high_pct as phase1_high_percentage,
+    phase1_medium_pct as phase1_medium_percentage,
+    phase1_low_pct as phase1_low_percentage,
+    phase2_high_pct as phase2_high_percentage,
+    phase2_medium_pct as phase2_medium_percentage,
+    phase2_low_pct as phase2_low_percentage,
+    average_phase2_score,
+    overall_confidence_level
 FROM allfeat_kpi.confidence_recording
 
 UNION ALL
 
 SELECT 
     'Release' as entity_type,
-    average_confidence_score,
-    overall_confidence_level,
-    gid_coverage_pct,
-    name_coverage_pct,
-    date_coverage_pct,
-    0 as ipi_coverage_pct
+    phase1_high_pct as phase1_high_percentage,
+    phase1_medium_pct as phase1_medium_percentage,
+    phase1_low_pct as phase1_low_percentage,
+    phase2_high_pct as phase2_high_percentage,
+    phase2_medium_pct as phase2_medium_percentage,
+    phase2_low_pct as phase2_low_percentage,
+    average_phase2_score,
+    overall_confidence_level
 FROM allfeat_kpi.confidence_release;
 ```
 
@@ -291,21 +299,73 @@ WHERE sample_type = 'Works without ISWC'
 LIMIT 20;
 ```
 
-### Requête 8 : Samples - Low Confidence Artists
+### Requête 8 : Samples - Low Confidence Artists (Phase 2)
 
 ```sql
 SELECT 
     artist_name,
     artist_gid,
-    confidence_score,
-    confidence_level
+    phase2_confidence_score,
+    phase2_confidence_level,
+    has_isrc,
+    has_iswc,
+    on_release,
+    has_ipi,
+    has_isni
 FROM allfeat_kpi.confidence_artist_samples
-WHERE confidence_level = 'Low Confidence'
-ORDER BY confidence_score ASC
+WHERE phase2_confidence_level = 'Low'
+ORDER BY phase2_confidence_score ASC
 LIMIT 20;
 ```
 
-## Optimisation des performances
+### Requête 9 : Comparaison Phase 1 vs Phase 2 (Artistes)
+
+```sql
+SELECT 
+    'Phase 1 (Catégorielle)' as method,
+    phase1_high_count as high_count,
+    phase1_medium_count as medium_count,
+    phase1_low_count as low_count,
+    phase1_high_pct as high_percentage,
+    phase1_medium_pct as medium_percentage,
+    phase1_low_pct as low_percentage
+FROM allfeat_kpi.confidence_artist
+
+UNION ALL
+
+SELECT 
+    'Phase 2 (Numérique)' as method,
+    phase2_high_count as high_count,
+    phase2_medium_count as medium_count,
+    phase2_low_count as low_count,
+    phase2_high_pct as high_percentage,
+    phase2_medium_pct as medium_percentage,
+    phase2_low_pct as low_percentage
+FROM allfeat_kpi.confidence_artist;
+```
+
+## Logique de confiance Phase 1 + Phase 2
+
+### Phase 1 : Logique catégorielle explicite
+Chaque entité (Artist, Work, Recording, Release) est évaluée selon des règles catégorielles claires :
+
+- **High** = Présence d'ISRC + ISWC + Identifiants artiste (ISNI/IPI) + Release
+- **Medium** = ISRC + (ISWC OU Identifiants artiste) OU (ISWC + Release)  
+- **Low** = Tous les autres cas
+
+### Phase 2 : Score numérique avec poids
+Chaque entité reçoit un score numérique (0-1) basé sur des poids explicites :
+
+- **Artistes/Enregistrements** : `0.3 × ISNI + 0.3 × ISWC + 0.2 × ISRC + 0.2 × Release`
+- **Œuvres** : `0.4 × ISWC + 0.3 × ISNI + 0.2 × ISRC + 0.1 × Release`
+- **Releases** : `0.3 × Date + 0.3 × ISRC + 0.2 × ISWC + 0.2 × ISNI`
+
+**Seuils** : ≥0.8 = High, ≥0.4 = Medium, <0.4 = Low
+
+### Choix pour les analystes
+- **Phase 1** : Pour des analyses catégorielles simples et rapides
+- **Phase 2** : Pour des analyses numériques précises et des comparaisons
+- **Les deux** : Pour valider la cohérence entre les approches
 
 ### Configuration ODBC avancée
 
@@ -493,17 +553,75 @@ Pour toute question spécifique à ce projet :
 - `sample_recording_ids`, `sample_recording_names`, `sample_artist_credits`, `sample_lengths`
 - `calculated_at`, `scope_note`
 
-#### allfeat_kpi.confidence_artist
-- `total_artists`, `total_confidence_score`, `average_confidence_score`
-- `artists_with_gid`, `artists_with_name`, `artists_with_sort_name`
-- `artists_with_begin_date`, `artists_with_area`, `artists_with_comment`
-- `artists_without_pending_edits`, `artists_with_ipi`, `artists_with_isni`
-- `gid_coverage_pct`, `name_coverage_pct`, `sort_name_coverage_pct`
-- `begin_date_coverage_pct`, `area_coverage_pct`, `comment_coverage_pct`
-- `no_pending_edits_pct`, `ipi_coverage_pct`, `isni_coverage_pct`
-- `overall_confidence_level`, `calculated_at`, `scope_note`
+#### allfeat_kpi.confidence_artist (Phase 1 + Phase 2)
+- `total_artists`, `phase1_high_count`, `phase1_medium_count`, `phase1_low_count`
+- `phase2_high_count`, `phase2_medium_count`, `phase2_low_count`
+- `phase1_high_pct`, `phase1_medium_pct`, `phase1_low_pct`
+- `phase2_high_pct`, `phase2_medium_pct`, `phase2_low_pct`
+- `average_phase2_score`, `overall_confidence_level`
+- `artists_with_isrc`, `artists_with_iswc`, `artists_on_release`
+- `artists_with_ipi`, `artists_with_isni`
+- `isrc_coverage_pct`, `iswc_coverage_pct`, `release_coverage_pct`
+- `ipi_coverage_pct`, `isni_coverage_pct`
+- `calculated_at`, `scope_note`
 
-#### allfeat_kpi.confidence_artist_samples
+#### allfeat_kpi.confidence_work (Phase 1 + Phase 2)
+- `total_works`, `phase1_high_count`, `phase1_medium_count`, `phase1_low_count`
+- `phase2_high_count`, `phase2_medium_count`, `phase2_low_count`
+- `phase1_high_pct`, `phase1_medium_pct`, `phase1_low_pct`
+- `phase2_high_pct`, `phase2_medium_pct`, `phase2_low_pct`
+- `average_phase2_score`, `overall_confidence_level`
+- `works_with_iswc`, `works_with_isrc`, `works_on_release`
+- `works_with_ipi`, `works_with_isni`
+- `iswc_coverage_pct`, `isrc_coverage_pct`, `release_coverage_pct`
+- `ipi_coverage_pct`, `isni_coverage_pct`
+- `calculated_at`, `scope_note`
+
+#### allfeat_kpi.confidence_recording (Phase 1 + Phase 2)
+- `total_recordings`, `phase1_high_count`, `phase1_medium_count`, `phase1_low_count`
+- `phase2_high_count`, `phase2_medium_count`, `phase2_low_count`
+- `phase1_high_pct`, `phase1_medium_pct`, `phase1_low_pct`
+- `phase2_high_pct`, `phase2_medium_pct`, `phase2_low_pct`
+- `average_phase2_score`, `overall_confidence_level`
+- `recordings_with_isrc`, `recordings_with_iswc`, `recordings_on_release`
+- `recordings_with_ipi`, `recordings_with_isni`
+- `isrc_coverage_pct`, `iswc_coverage_pct`, `release_coverage_pct`
+- `ipi_coverage_pct`, `isni_coverage_pct`
+- `calculated_at`, `scope_note`
+
+#### allfeat_kpi.confidence_release (Phase 1 + Phase 2)
+- `total_releases`, `phase1_high_count`, `phase1_medium_count`, `phase1_low_count`
+- `phase2_high_count`, `phase2_medium_count`, `phase2_low_count`
+- `phase1_high_pct`, `phase1_medium_pct`, `phase1_low_pct`
+- `phase2_high_pct`, `phase2_medium_pct`, `phase2_low_pct`
+- `average_phase2_score`, `overall_confidence_level`
+- `releases_with_date`, `releases_with_country`, `releases_with_isrc`
+- `releases_with_iswc`, `releases_with_ipi`, `releases_with_isni`
+- `date_coverage_pct`, `country_coverage_pct`, `isrc_coverage_pct`
+- `iswc_coverage_pct`, `ipi_coverage_pct`, `isni_coverage_pct`
+- `calculated_at`, `scope_note`
+
+#### allfeat_kpi.confidence_artist_samples (Phase 1 + Phase 2)
 - `artist_id`, `artist_name`, `artist_gid`, `sort_name`
-- `begin_date`, `end_date`, `area`, `comment`, `edits_pending`
-- `confidence_score`, `confidence_level`, `last_updated`
+- `begin_date`, `end_date`, `area`
+- `has_isrc`, `has_iswc`, `on_release`, `has_ipi`, `has_isni`
+- `phase1_confidence_level`, `phase2_confidence_score`, `phase2_confidence_level`
+- `confidence_level` (compatibilité), `confidence_score` (compatibilité)
+
+#### allfeat_kpi.confidence_work_samples (Phase 1 + Phase 2)
+- `work_id`, `work_name`, `work_gid`, `work_type`, `language_code`, `iswc`
+- `has_iswc`, `has_isrc`, `on_release`, `has_ipi`, `has_isni`
+- `phase1_confidence_level`, `phase2_confidence_score`, `phase2_confidence_level`
+- `confidence_level` (compatibilité), `confidence_score` (compatibilité)
+
+#### allfeat_kpi.confidence_recording_samples (Phase 1 + Phase 2)
+- `recording_id`, `recording_name`, `recording_gid`, `length`, `isrc`
+- `has_isrc`, `has_iswc`, `on_release`, `has_ipi`, `has_isni`
+- `phase1_confidence_level`, `phase2_confidence_score`, `phase2_confidence_level`
+- `confidence_level` (compatibilité), `confidence_score` (compatibilité)
+
+#### allfeat_kpi.confidence_release_samples (Phase 1 + Phase 2)
+- `release_id`, `release_name`, `release_gid`, `date_year`, `date_month`, `date_day`, `country`
+- `has_date`, `has_country`, `has_isrc`, `has_iswc`, `has_ipi`, `has_isni`
+- `phase1_confidence_level`, `phase2_confidence_score`, `phase2_confidence_level`
+- `confidence_level` (compatibilité), `confidence_score` (compatibilité)

@@ -34,12 +34,12 @@ Mettre en place un environnement PostgreSQL local avec le dump MusicBrainz et cr
 - **Vue combinée** : `allfeat_kpi.work_recording_inconsistencies`
 - **Métriques** : Enregistrements sans œuvres, œuvres sans enregistrements
 
-### 6. Niveaux de confiance (hiérarchie Artist > Work > Recording > Release)
+### 6. Niveaux de confiance : Vues indépendantes par entité (Artist, Work, Recording, Release)
 - **Artistes** : `allfeat_kpi.confidence_artist` + `allfeat_kpi.confidence_artist_samples`
 - **Œuvres** : `allfeat_kpi.confidence_work` + `allfeat_kpi.confidence_work_samples`
 - **Enregistrements** : `allfeat_kpi.confidence_recording` + `allfeat_kpi.confidence_recording_samples`
 - **Releases** : `allfeat_kpi.confidence_release` + `allfeat_kpi.confidence_release_samples`
-- **Métriques** : Score de confiance (0-100), facteurs détaillés, classification par niveau
+- **Métriques** : Niveau Phase 1 (High/Medium/Low basé sur IDs + cohérence des liens), Score Phase 2 (0–1 pondéré), Niveau Phase 2 (High/Medium/Low dérivé du score)
 
 ## 🏗️ Architecture technique
 
@@ -155,7 +155,7 @@ ORDER BY duplicate_risk_score DESC LIMIT 10;
 
 -- Artistes avec faible confiance
 SELECT * FROM allfeat_kpi.confidence_artist_samples 
-WHERE confidence_level = 'Low Confidence' LIMIT 20;
+WHERE phase2_confidence_level = 'Low' LIMIT 20;
 ```
 
 ## 🎯 Public cible
@@ -192,7 +192,7 @@ WHERE confidence_level = 'Low Confidence' LIMIT 20;
 
 ### Scope limité
 - **Artistes uniquement** (labels en backlog)
-- **Hiérarchie confiance** : Artist > Work > Recording > Release
+- **Logique confiance** : Phase 1 (catégorielle) + Phase 2 (numérique) par entité indépendante
 - **Accès prioritaire** : Excel/ODBC (Parquet/CSV en Phase 2)
 
 ### Performance

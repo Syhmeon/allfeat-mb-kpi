@@ -102,4 +102,4 @@ ORDER BY viewname;
 "
 
 echo "✅ Vues KPI appliquées avec succès!"
-echo "🔍 Vous pouvez maintenant tester avec: psql -f scripts/smoke_tests.sql"
+echo "🔍 Vous pouvez maintenant tester avec: psql -f scripts/tests.sql"

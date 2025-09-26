@@ -105,7 +105,7 @@ fi
 
 # Étape 5: Tests de validation
 echo "🧪 Tests de validation..."
-if psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f scripts/smoke_tests.sql >/dev/null 2>&1; then
+if psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f scripts/tests.sql >/dev/null 2>&1; then
     echo "✅ Tests de validation réussis"
 else
     echo "⚠️  Certains tests ont échoué. Vérifiez les logs."
@@ -125,8 +125,7 @@ echo "   Password: musicbrainz"
 echo ""
 echo "🔗 Commandes utiles:"
 echo "   Connexion: psql -h $DB_HOST -U $DB_USER -d $DB_NAME"
-echo "   Tests: psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/smoke_tests.sql"
-echo "   Exemples: psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/explain_samples.sql"
+echo "   Tests: psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/tests.sql"
 echo ""
 echo "📋 Vues KPI disponibles:"
 psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "

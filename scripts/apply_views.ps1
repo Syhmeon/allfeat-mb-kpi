@@ -173,23 +173,23 @@ ORDER BY viewname;
 
 # 6. Exécution automatique des tests de fumée
 Write-Host "🧪 Exécution automatique des tests de fumée..." -ForegroundColor Yellow
-$smokeTestsPath = Join-Path "scripts" "smoke_tests.sql"
+$testsPath = Join-Path "scripts" "tests.sql"
 
-if (Test-Path $smokeTestsPath) {
+if (Test-Path $testsPath) {
     try {
-        Write-Host "  - Exécution de scripts/smoke_tests.sql..." -ForegroundColor Cyan
-        $smokeResult = psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $smokeTestsPath
+        Write-Host "  - Exécution de scripts/tests.sql..." -ForegroundColor Cyan
+        $testsResult = psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $testsPath
         if ($LASTEXITCODE -eq 0) {
-            $smokeTestsSuccess = $true
-            Write-Host "    ✅ Tests de fumée réussis" -ForegroundColor Green
+            $testsSuccess = $true
+            Write-Host "    ✅ Tests réussis" -ForegroundColor Green
         } else {
-            Write-Host "    ❌ Tests de fumée échoués" -ForegroundColor Red
+            Write-Host "    ❌ Tests échoués" -ForegroundColor Red
         }
     } catch {
-        Write-Host "    ❌ Erreur lors de l'exécution des tests de fumée" -ForegroundColor Red
+        Write-Host "    ❌ Erreur lors de l'exécution des tests" -ForegroundColor Red
     }
 } else {
-    Write-Host "⚠️  Fichier scripts/smoke_tests.sql introuvable" -ForegroundColor Yellow
+    Write-Host "⚠️  Fichier scripts/tests.sql introuvable" -ForegroundColor Yellow
 }
 
 # 7. Résumé final

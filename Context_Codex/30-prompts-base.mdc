@@ -1,0 +1,13 @@
+---
+alwaysApply: false
+---
+
+# Base Prompts — Allfeat MusicBrainz KPI
+
+- Documenter chaque fichier modifié : “Here’s what I did and why” + filepath  
+- Ajouter commentaires I/O et erreurs attendues  
+- SQL : expliquer clés d’index, stratégie de join, filtres qualité  
+- Scripts : maintenir compatibilité Linux/Mac (sh) et Windows (ps1)  
+- Commits : atomiques, alignés sur Implementation.md  
+
+---

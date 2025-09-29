@@ -1,0 +1,37 @@
+---
+alwaysApply: true
+---
+
+# Workflow — Allfeat MusicBrainz KPI (Phase 1, Source of Truth)
+
+## Objectif
+Configurer un PostgreSQL local (via Docker) avec le dump MusicBrainz, puis créer le schéma `allfeat_kpi` contenant 10 vues KPI pour mesurer la qualité et la complétude des métadonnées.
+
+## KPI
+- Couverture ISRC (% enregistrements avec ISRC)  
+- Couverture ISWC (% œuvres avec ISWC)  
+- Identifiants manquants (ISNI, IPI, VIAF, Wikidata, IMDB)  
+- Doublons ISRC  
+- Incohérences Work–Recording  
+- Niveaux de confiance (Phase 1: High/Medium/Low ; Phase 2: score pondéré 0–1)  
+
+## Public cible
+- Data Engineers Allfeat  
+- Analystes qualité des métadonnées  
+- Parties prenantes business  
+
+## Ordre de lecture Cursor
+1) /Context_Codex/PRD.md  
+2) /Context_Codex/Implementation.md (étape active)  
+3) /Context_Codex/Architecture.md (contrats I/O)  
+4) /Context_Codex/rules/30-prompts-base.mdc  
+5) /Context_Codex/Testing.md (si requis)  
+
+## Règles
+- Une sous-étape à la fois (définie dans Implementation.md)  
+- Lancer `scripts/tests.sql` après modifs  
+- Compatibilité Windows/Unix (`.sh` et `.ps1`)  
+- Stop si ratio hors [0;1], PK/FK nulles, cartésiens non maîtrisés → log dans /logs/Bug_tracking.md  
+
+---
+

@@ -214,6 +214,6 @@ CREATE EXTENSION IF NOT EXISTS earthdistance;
     Write-Host "⚠️  Avertissement: Exception lors de l'installation des extensions" -ForegroundColor Yellow
 }
 
-Write-Host "✅ Import MusicBrainz officiel terminé avec succès!" -ForegroundColor Green
+Write-Host "✅ Import MusicBrainz officiel v30 terminé avec succès!" -ForegroundColor Green
 Write-Host "🔍 Vous pouvez maintenant appliquer les index avec: .\scripts\apply_mb_indexes.ps1" -ForegroundColor Cyan
 Write-Host "📊 Base de données accessible via le conteneur: $CONTAINER_NAME" -ForegroundColor Cyan

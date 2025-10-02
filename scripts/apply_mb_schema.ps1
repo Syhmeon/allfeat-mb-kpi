@@ -7,7 +7,7 @@ param(
     [string]$DB_NAME = "musicbrainz",
     [string]$DB_USER = "musicbrainz",
     [string]$CONTAINER_NAME = "musicbrainz-postgres",
-    [string]$MB_VERSION = "v30"
+    [string]$MB_VERSION = "v-2025-05-23.0-schema-change"
 )
 
 Write-Host "🚀 Application du schéma MusicBrainz officiel (version $MB_VERSION)..." -ForegroundColor Green
@@ -64,7 +64,7 @@ if (Test-Path $tempDir) {
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 Write-Host "📁 Répertoire temporaire créé: $tempDir" -ForegroundColor Green
 
-# URLs des fichiers SQL officiels MusicBrainz
+# URLs des fichiers SQL officiels MusicBrainz (release v-2025-05-23.0-schema-change)
 $schemaFiles = @{
     "CreateTypes.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateTypes.sql"
     "CreateTables.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateTables.sql"
@@ -170,5 +170,5 @@ try {
     exit 1
 }
 
-Write-Host "✅ Schéma MusicBrainz officiel appliqué avec succès!" -ForegroundColor Green
+Write-Host "✅ Schéma MusicBrainz officiel v30 appliqué avec succès!" -ForegroundColor Green
 Write-Host "🔍 Vous pouvez maintenant importer les données avec: .\scripts\import_mb.ps1" -ForegroundColor Cyan

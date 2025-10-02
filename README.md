@@ -161,24 +161,29 @@ allfeat-mb-kpi/
    - Créer la source de données ODBC `MB_ODBC`
    - Configurer les connexions Power Query
 
-## 🎯 Import officiel MusicBrainz
+## 🎯 Import officiel MusicBrainz v30
+
+### Release officielle utilisée
+
+Ce projet utilise la **release officielle MusicBrainz** : [`v-2025-05-23.0-schema-change`](https://github.com/metabrainz/musicbrainz-server/releases/tag/v-2025-05-23.0-schema-change)
 
 ### Workflow complet
 
-Ce projet utilise la Méthode  (Windows + Docker) pour un import 100% conforme aux pratiques MusicBrainz officielles :
+Pipeline 100% conforme aux pratiques MusicBrainz officielles (Windows + Docker) :
 
 1. **Schéma** : `apply_mb_schema.ps1` télécharge et applique le schéma officiel v30
-2. **Données** : `import_mb.ps1` utilise `\copy` pour importer les données depuis `E:\mbdump` (ou le bon repertoire)
+2. **Données** : `import_mb.ps1` utilise `\copy` pour importer les données depuis `E:\mbdump`
 3. **Index** : `apply_mb_indexes.ps1` applique les index et contraintes officiels
 4. **Vérification** : `verify_mb_schema.ps1` valide l'installation
 5. **KPI** : `apply_views.ps1` crée les vues d'analyse Allfeat
+6. **Tests** : `tests.sql` valide le fonctionnement complet
 
-### Avantages de cette Méthode
+### Avantages de cette méthode
 
 - ✅ **100% officiel** : Utilise les scripts SQL du dépôt musicbrainz-server
-- ✅ **Version v30** : Compatible avec la dernière version du schéma
+- ✅ **Release v30** : Compatible avec la release `v-2025-05-23.0-schema-change`
 - ✅ **Performance optimale** : `\copy` plus rapide que `pg_restore` pour les gros volumes
-- ✅ **Validation automatique** : Vérification de `SCHEMA_SEQUENCE` et des données
+- ✅ **Validation automatique** : Vérification de `SCHEMA_SEQUENCE = 30` et des données
 - ✅ **Index complets** : Tous les index et contraintes officiels appliqués
 - ✅ **Docker uniquement** : Aucun client PostgreSQL local requis
 
@@ -188,6 +193,18 @@ Ce projet utilise la Méthode  (Windows + Docker) pour un import 100% conforme a
 - **Fichier SCHEMA_SEQUENCE** contenant "30"
 - **Connexion Internet** pour télécharger les scripts officiels
 - **Docker Desktop** avec montage `E:\mbdump:/dumps:ro`
+
+### Commandes de test
+
+```powershell
+# Test complet du pipeline
+.\scripts\apply_mb_schema.ps1
+.\scripts\import_mb.ps1
+.\scripts\apply_mb_indexes.ps1
+.\scripts\verify_mb_schema.ps1
+.\scripts\apply_views.ps1
+docker exec -i musicbrainz-postgres psql -U musicbrainz -d musicbrainz < scripts/tests.sql
+```
 
 ## 📈 Utilisation
 

@@ -7,7 +7,7 @@ param(
     [string]$DB_NAME = "musicbrainz",
     [string]$DB_USER = "musicbrainz",
     [string]$CONTAINER_NAME = "musicbrainz-postgres",
-    [string]$MB_VERSION = "v30"
+    [string]$MB_VERSION = "v-2025-05-23.0-schema-change"
 )
 
 Write-Host "🚀 Application des index MusicBrainz officiels (version $MB_VERSION)..." -ForegroundColor Green
@@ -65,7 +65,7 @@ if (Test-Path $tempDir) {
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 Write-Host "📁 Répertoire temporaire créé: $tempDir" -ForegroundColor Green
 
-# URLs des fichiers SQL officiels MusicBrainz pour les index
+# URLs des fichiers SQL officiels MusicBrainz pour les index (release v-2025-05-23.0-schema-change)
 $indexFiles = @{
     "CreatePrimaryKeys.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreatePrimaryKeys.sql"
     "CreateIndexes.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateIndexes.sql"
@@ -183,6 +183,6 @@ try {
     Write-Host "⚠️  Avertissement: Exception lors de VACUUM ANALYZE: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
-Write-Host "✅ Index MusicBrainz officiels appliqués avec succès!" -ForegroundColor Green
+Write-Host "✅ Index MusicBrainz officiels v30 appliqués avec succès!" -ForegroundColor Green
 Write-Host "🔍 Vous pouvez maintenant appliquer les vues KPI avec: .\scripts\apply_views.ps1" -ForegroundColor Cyan
 Write-Host "📊 Base de données optimisée et prête pour les requêtes KPI" -ForegroundColor Cyan

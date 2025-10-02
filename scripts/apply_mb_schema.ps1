@@ -69,7 +69,6 @@ $schemaFiles = @{
     "CreateTypes.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateTypes.sql"
     "CreateTables.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateTables.sql"
     "CreatePrimaryKeys.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreatePrimaryKeys.sql"
-    "CreateSearchConfigurations.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateSearchConfigurations.sql"
     "CreateFunctions.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateFunctions.sql"
     "CreateConstraints.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateConstraints.sql"
     "CreateFKConstraints.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateFKConstraints.sql"
@@ -79,6 +78,16 @@ $schemaFiles = @{
 # Télécharger les fichiers SQL
 Write-Host "📥 Téléchargement des fichiers SQL officiels MusicBrainz..." -ForegroundColor Yellow
 $downloadedFiles = @()
+
+# Ajouter le fichier local CreateSearchConfigLight.sql à la liste des fichiers à copier
+$localSearchConfigFile = Join-Path $PSScriptRoot "../sql/CreateSearchConfigLight.sql"
+if (Test-Path $localSearchConfigFile) {
+    $downloadedFiles += $localSearchConfigFile
+    Write-Host "  📄 Fichier local CreateSearchConfigLight.sql ajouté" -ForegroundColor Cyan
+} else {
+    Write-Host "  ❌ Fichier CreateSearchConfigLight.sql introuvable" -ForegroundColor Red
+    exit 1
+}
 
 foreach ($fileName in $schemaFiles.Keys) {
     $url = $schemaFiles[$fileName]
@@ -107,7 +116,7 @@ $containerFiles = @()
 foreach ($localFile in $downloadedFiles) {
     $fileName = Split-Path $localFile -Leaf
     $containerPath = "/tmp/$fileName"
-    
+
     Write-Host "  📄 Copie de $fileName vers le conteneur..." -ForegroundColor Cyan
     try {
         docker cp $localFile "${CONTAINER_NAME}:${containerPath}"
@@ -165,11 +174,35 @@ try {
 
 # Exécuter les fichiers SQL dans l'ordre (mode léger KPI)
 Write-Host "🔧 Application du schéma MusicBrainz (mode léger KPI)..." -ForegroundColor Yellow
-$executionOrder = @("CreateTypes.sql", "CreateTables.sql", "CreatePrimaryKeys.sql", "CreateSearchConfigurations.sql", "CreateFunctions.sql", "CreateConstraints.sql", "CreateFKConstraints.sql", "CreateIndexes.sql")
+$executionOrder = @("CreateTypes.sql", "CreateTables.sql", "CreatePrimaryKeys.sql", "CreateFunctions.sql", "CreateConstraints.sql", "CreateFKConstraints.sql", "CreateIndexes.sql")
 
 foreach ($fileName in $executionOrder) {
     $containerPath = "/tmp/$fileName"
-    
+
+    # Étape spéciale : exécution de CreateSearchConfigLight.sql depuis le conteneur avant CreateFunctions.sql
+    if ($fileName -eq "CreateFunctions.sql") {
+        $searchConfigContainerPath = "/tmp/CreateSearchConfigLight.sql"
+        if ($containerFiles -contains $searchConfigContainerPath) {
+            Write-Host "  📄 Exécution de CreateSearchConfigLight.sql..." -ForegroundColor Cyan
+            try {
+                $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -f $searchConfigContainerPath 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "    ✅ CreateSearchConfigLight.sql exécuté avec succès" -ForegroundColor Green
+                } else {
+                    Write-Host "    ❌ Erreur lors de l'exécution de CreateSearchConfigLight.sql" -ForegroundColor Red
+                    Write-Host "    📝 Message d'erreur: $result" -ForegroundColor Red
+                    exit 1
+                }
+            } catch {
+                Write-Host "    ❌ Exception lors de l'exécution de CreateSearchConfigLight.sql : $($_.Exception.Message)" -ForegroundColor Red
+                exit 1
+            }
+        } else {
+            Write-Host "    ❌ Fichier CreateSearchConfigLight.sql non trouvé dans le conteneur" -ForegroundColor Red
+            exit 1
+        }
+    }
+
     if ($containerFiles -contains $containerPath) {
         Write-Host "  📄 Exécution de $fileName..." -ForegroundColor Cyan
         try {

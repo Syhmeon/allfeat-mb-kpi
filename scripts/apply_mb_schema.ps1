@@ -120,6 +120,22 @@ foreach ($localFile in $downloadedFiles) {
     }
 }
 
+# ⚙️ Vérification/Création collation musicbrainz
+Write-Host "⚙️ Vérification/Création collation musicbrainz..." -ForegroundColor Yellow
+try {
+    $collationQuery = "CREATE COLLATION IF NOT EXISTS musicbrainz (provider = icu, locale = 'und-u-ks-level2', deterministic = false);"
+    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c $collationQuery 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✅ Collation musicbrainz créée/vérifiée avec succès" -ForegroundColor Green
+    } else {
+        Write-Host "⚠️ Avertissement lors de la création de la collation: $result" -ForegroundColor Yellow
+        Write-Host "💡 La collation existe peut-être déjà ou il y a un problème de configuration ICU" -ForegroundColor Cyan
+    }
+} catch {
+    Write-Host "⚠️ Exception lors de la création de la collation: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "💡 La collation existe peut-être déjà" -ForegroundColor Cyan
+}
+
 # Exécuter les fichiers SQL dans l'ordre
 Write-Host "🔧 Application du schéma MusicBrainz..." -ForegroundColor Yellow
 $executionOrder = @("CreateTypes.sql", "CreateTables.sql", "CreateFunctions.sql", "CreateViews.sql")

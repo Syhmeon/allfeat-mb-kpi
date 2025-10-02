@@ -10,7 +10,7 @@ param(
     [string]$MB_VERSION = "v-2025-05-23.0-schema-change"
 )
 
-Write-Host "🚀 Application du schéma MusicBrainz officiel (version $MB_VERSION)..." -ForegroundColor Green
+Write-Host "🚀 Application du schéma MusicBrainz officiel (mode léger KPI - version $MB_VERSION)..." -ForegroundColor Green
 
 # Vérifier que le conteneur est en cours d'exécution
 Write-Host "🐳 Vérification du conteneur $CONTAINER_NAME..." -ForegroundColor Yellow
@@ -64,12 +64,14 @@ if (Test-Path $tempDir) {
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 Write-Host "📁 Répertoire temporaire créé: $tempDir" -ForegroundColor Green
 
-# URLs des fichiers SQL officiels MusicBrainz (release v-2025-05-23.0-schema-change)
+# URLs des fichiers SQL officiels MusicBrainz (mode léger KPI - release v-2025-05-23.0-schema-change)
 $schemaFiles = @{
     "CreateTypes.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateTypes.sql"
     "CreateTables.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateTables.sql"
-    "CreateFunctions.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateFunctions.sql"
-    "CreateViews.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateViews.sql"
+    "CreatePrimaryKeys.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreatePrimaryKeys.sql"
+    "CreateConstraints.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateConstraints.sql"
+    "CreateFKConstraints.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateFKConstraints.sql"
+    "CreateIndexes.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateIndexes.sql"
 }
 
 # Télécharger les fichiers SQL
@@ -120,25 +122,25 @@ foreach ($localFile in $downloadedFiles) {
     }
 }
 
-# ⚙️ Vérification/Création collation musicbrainz
-Write-Host "⚙️ Vérification/Création collation musicbrainz..." -ForegroundColor Yellow
+# ⚙️ Création de l'extension cube (nécessaire pour MusicBrainz)
+Write-Host "⚙️ Création de l'extension cube..." -ForegroundColor Yellow
 try {
-    $collationQuery = "CREATE COLLATION IF NOT EXISTS musicbrainz (provider = icu, locale = 'und-u-ks-level2', deterministic = false);"
-    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c $collationQuery 2>&1
+    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS cube;" 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Collation musicbrainz créée/vérifiée avec succès" -ForegroundColor Green
+        Write-Host "✅ Extension cube créée/vérifiée avec succès" -ForegroundColor Green
     } else {
-        Write-Host "⚠️ Avertissement lors de la création de la collation: $result" -ForegroundColor Yellow
-        Write-Host "💡 La collation existe peut-être déjà ou il y a un problème de configuration ICU" -ForegroundColor Cyan
+        Write-Host "⚠️ Avertissement lors de la création de l'extension cube: $result" -ForegroundColor Yellow
+        Write-Host "💡 L'extension existe peut-être déjà ou il y a un problème de configuration" -ForegroundColor Cyan
     }
 } catch {
-    Write-Host "⚠️ Exception lors de la création de la collation: $($_.Exception.Message)" -ForegroundColor Yellow
-    Write-Host "💡 La collation existe peut-être déjà" -ForegroundColor Cyan
+    Write-Host "⚠️ Exception lors de la création de l'extension cube: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "💡 L'extension existe peut-être déjà" -ForegroundColor Cyan
 }
 
-# Exécuter les fichiers SQL dans l'ordre
-Write-Host "🔧 Application du schéma MusicBrainz..." -ForegroundColor Yellow
-$executionOrder = @("CreateTypes.sql", "CreateTables.sql", "CreateFunctions.sql", "CreateViews.sql")
+
+# Exécuter les fichiers SQL dans l'ordre (mode léger KPI)
+Write-Host "🔧 Application du schéma MusicBrainz (mode léger KPI)..." -ForegroundColor Yellow
+$executionOrder = @("CreateCollations.sql", "CreateTypes.sql", "CreateTables.sql", "CreatePrimaryKeys.sql", "CreateConstraints.sql", "CreateFKConstraints.sql", "CreateIndexes.sql")
 
 foreach ($fileName in $executionOrder) {
     $containerPath = "/tmp/$fileName"
@@ -186,5 +188,5 @@ try {
     exit 1
 }
 
-Write-Host "✅ Schéma MusicBrainz officiel v30 appliqué avec succès!" -ForegroundColor Green
+Write-Host "✅ Schéma MusicBrainz officiel v30 (mode léger KPI) appliqué avec succès!" -ForegroundColor Green
 Write-Host "🔍 Vous pouvez maintenant importer les données avec: .\scripts\import_mb.ps1" -ForegroundColor Cyan

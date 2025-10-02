@@ -69,6 +69,8 @@ $schemaFiles = @{
     "CreateTypes.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateTypes.sql"
     "CreateTables.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateTables.sql"
     "CreatePrimaryKeys.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreatePrimaryKeys.sql"
+    "CreateSearchConfigurations.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateSearchConfigurations.sql"
+    "CreateFunctions.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateFunctions.sql"
     "CreateConstraints.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateConstraints.sql"
     "CreateFKConstraints.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateFKConstraints.sql"
     "CreateIndexes.sql" = "https://raw.githubusercontent.com/metabrainz/musicbrainz-server/$MB_VERSION/admin/sql/CreateIndexes.sql"
@@ -122,20 +124,27 @@ foreach ($localFile in $downloadedFiles) {
     }
 }
 
-# ⚙️ Création de la collation ICU musicbrainz (nécessaire pour MusicBrainz)
-Write-Host "⚙️ Création de la collation ICU musicbrainz..." -ForegroundColor Yellow
+
+# ⚙️ Préparation du schéma MusicBrainz
+Write-Host "⚙️ Préparation du schéma MusicBrainz..." -ForegroundColor Yellow
 try {
-    $collationQuery = "CREATE COLLATION IF NOT EXISTS musicbrainz (provider = icu, locale = 'und-u-ks-level2', deterministic = false);"
-    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c $collationQuery 2>&1
+    # Créer le schéma musicbrainz s'il n'existe pas
+    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "CREATE SCHEMA IF NOT EXISTS musicbrainz;" 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Collation ICU musicbrainz créée/vérifiée avec succès" -ForegroundColor Green
+        Write-Host "  ✅ Schéma musicbrainz créé/vérifié" -ForegroundColor Green
     } else {
-        Write-Host "⚠️ Avertissement lors de la création de la collation: $result" -ForegroundColor Yellow
-        Write-Host "💡 La collation existe peut-être déjà ou il y a un problème de configuration ICU" -ForegroundColor Cyan
+        Write-Host "  ⚠️ Avertissement création schéma: $result" -ForegroundColor Yellow
+    }
+
+    # Créer la collation musicbrainz dans le schéma musicbrainz
+    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "CREATE COLLATION IF NOT EXISTS musicbrainz.musicbrainz (provider = icu, locale = 'und-u-ks-level2', deterministic = false);" 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  ✅ Collation musicbrainz.musicbrainz créée/vérifiée" -ForegroundColor Green
+    } else {
+        Write-Host "  ⚠️ Avertissement création collation: $result" -ForegroundColor Yellow
     }
 } catch {
-    Write-Host "⚠️ Exception lors de la création de la collation: $($_.Exception.Message)" -ForegroundColor Yellow
-    Write-Host "💡 La collation existe peut-être déjà" -ForegroundColor Cyan
+    Write-Host "  ⚠️ Exception lors de la préparation du schéma: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
 # ⚙️ Création de l'extension cube (nécessaire pour MusicBrainz)
@@ -156,7 +165,7 @@ try {
 
 # Exécuter les fichiers SQL dans l'ordre (mode léger KPI)
 Write-Host "🔧 Application du schéma MusicBrainz (mode léger KPI)..." -ForegroundColor Yellow
-$executionOrder = @("CreateTypes.sql", "CreateTables.sql", "CreatePrimaryKeys.sql", "CreateConstraints.sql", "CreateFKConstraints.sql", "CreateIndexes.sql")
+$executionOrder = @("CreateTypes.sql", "CreateTables.sql", "CreatePrimaryKeys.sql", "CreateSearchConfigurations.sql", "CreateFunctions.sql", "CreateConstraints.sql", "CreateFKConstraints.sql", "CreateIndexes.sql")
 
 foreach ($fileName in $executionOrder) {
     $containerPath = "/tmp/$fileName"

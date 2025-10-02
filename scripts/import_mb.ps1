@@ -1,4 +1,4 @@
-# Script d'import MusicBrainz pour Windows PowerShell (via Docker)
+# Script d'import MusicBrainz officiel pour Windows PowerShell (via Docker)
 # Usage: .\scripts\import_mb.ps1
 
 param(
@@ -10,7 +10,7 @@ param(
     [string]$CONTAINER_NAME = "musicbrainz-postgres"
 )
 
-Write-Host "🚀 Début de l'import MusicBrainz via Docker..." -ForegroundColor Green
+Write-Host "🚀 Début de l'import MusicBrainz officiel via Docker..." -ForegroundColor Green
 
 # Vérifier que le conteneur est en cours d'exécution
 Write-Host "🐳 Vérification du conteneur $CONTAINER_NAME..." -ForegroundColor Yellow
@@ -31,7 +31,7 @@ try {
 # Vérifier que PostgreSQL dans le conteneur est accessible
 Write-Host "📡 Vérification de la connexion PostgreSQL dans le conteneur..." -ForegroundColor Yellow
 try {
-    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d postgres -c "SELECT 1;" 2>$null
+    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "SELECT 1;" 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw "Connexion échouée"
     }
@@ -50,16 +50,6 @@ if (-not (Test-Path $DUMPS_DIR)) {
     exit 1
 }
 
-# Trouver les fichiers MusicBrainz extraits (sans extension)
-$dumpFiles = Get-ChildItem -Path $DUMPS_DIR -File | Where-Object { $_.Extension -eq "" }
-if ($dumpFiles.Count -eq 0) {
-    Write-Host "❌ Aucun fichier MusicBrainz trouvé dans $DUMPS_DIR" -ForegroundColor Red
-    Write-Host "💡 Vérifiez que le répertoire MusicBrainz contient des fichiers sans extension" -ForegroundColor Cyan
-    exit 1
-}
-
-Write-Host "📦 Trouvé $($dumpFiles.Count) fichiers à importer depuis $DUMPS_DIR" -ForegroundColor Green
-
 # Vérifier que le conteneur est démarré avec le bon montage
 Write-Host "🔗 Vérification du montage des volumes..." -ForegroundColor Yellow
 try {
@@ -72,7 +62,7 @@ try {
             $dumpsMountFound = $true
             Write-Host "✅ Volume monté: $($mount.Source) -> /dumps" -ForegroundColor Green
             
-            # Vérifier si c'est le bon répervoir monté
+            # Vérifier si c'est le bon répertoire monté
             if ($mount.Source -eq $DUMPS_DIR) {
                 $correctMount = $true
                 Write-Host "✅ Le bon répertoire est monté ($DUMPS_DIR)" -ForegroundColor Green
@@ -114,52 +104,87 @@ try {
     Write-Host "💡 Assurez-vous que le conteneur peut accéder aux fichiers MusicBrainz via /dumps" -ForegroundColor Cyan
 }
 
-# Créer la base de données si elle n'existe pas
-Write-Host "🗄️  Création de la base de données..." -ForegroundColor Yellow
+# Vérifier SCHEMA_SEQUENCE
+Write-Host "🔍 Vérification de SCHEMA_SEQUENCE..." -ForegroundColor Yellow
 try {
-    docker exec $CONTAINER_NAME psql -U $DB_USER -d postgres -c "CREATE DATABASE $DB_NAME;" 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Base de données créée" -ForegroundColor Green
+    $schemaSequencePath = Join-Path $DUMPS_DIR "SCHEMA_SEQUENCE"
+    if (Test-Path $schemaSequencePath) {
+        $schemaVersion = Get-Content $schemaSequencePath -Raw | ForEach-Object { $_.Trim() }
+        Write-Host "📋 Version du schéma détectée: $schemaVersion" -ForegroundColor Green
+        
+        if ($schemaVersion -ne "30") {
+            Write-Host "❌ Version de schéma incompatible: $schemaVersion (attendu: 30)" -ForegroundColor Red
+            Write-Host "💡 Ce script est conçu pour MusicBrainz v30 uniquement" -ForegroundColor Cyan
+            exit 1
+        }
+        Write-Host "✅ Version de schéma compatible: v30" -ForegroundColor Green
     } else {
-        Write-Host "ℹ️  Base de données existe déjà" -ForegroundColor Gray
+        Write-Host "❌ Fichier SCHEMA_SEQUENCE introuvable dans $DUMPS_DIR" -ForegroundColor Red
+        Write-Host "💡 Vérifiez que vous avez extrait le bon dump MusicBrainz" -ForegroundColor Cyan
+        exit 1
     }
 } catch {
-    Write-Host "❌ Erreur lors de la création de la base de données" -ForegroundColor Red
+    Write-Host "❌ Erreur lors de la lecture de SCHEMA_SEQUENCE: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
 
-# Importer chaque fichier MusicBrainz
-Write-Host "📥 Import des fichiers MusicBrainz (cela peut prendre plusieurs heures)..." -ForegroundColor Yellow
-Write-Host "⏳ Cette étape peut prendre plusieurs heures selon la taille des fichiers..." -ForegroundColor Cyan
+# Lister les fichiers de données (ignorer les fichiers spéciaux)
+Write-Host "📋 Analyse des fichiers de données..." -ForegroundColor Yellow
+$excludePatterns = @("README", "*_SEQUENCE", "COPYING", "*.md", "*.txt", "*.log")
+$dataFiles = Get-ChildItem -Path $DUMPS_DIR -File | Where-Object { 
+    $file = $_
+    $shouldExclude = $false
+    foreach ($pattern in $excludePatterns) {
+        if ($file.Name -like $pattern) {
+            $shouldExclude = $true
+            break
+        }
+    }
+    -not $shouldExclude
+}
 
-$totalFiles = $dumpFiles.Count
+if ($dataFiles.Count -eq 0) {
+    Write-Host "❌ Aucun fichier de données trouvé dans $DUMPS_DIR" -ForegroundColor Red
+    Write-Host "💡 Vérifiez que le dump MusicBrainz est correctement extrait" -ForegroundColor Cyan
+    exit 1
+}
+
+Write-Host "📦 Trouvé $($dataFiles.Count) fichiers de données à importer" -ForegroundColor Green
+
+# Importer chaque fichier de données avec \copy
+Write-Host "📥 Import des données MusicBrainz avec \\copy (cela peut prendre plusieurs heures)..." -ForegroundColor Yellow
+Write-Host "⏳ Cette étape peut prendre plusieurs heures selon la taille des données..." -ForegroundColor Cyan
+
+$totalFiles = $dataFiles.Count
 $successCount = 0
 $failedFiles = @()
 
 for ($i = 0; $i -lt $totalFiles; $i++) {
-    $file = $dumpFiles[$i]
+    $file = $dataFiles[$i]
     $fileNumber = $i + 1
+    $tableName = $file.Name
     
-    Write-Host "📄 [$fileNumber/$totalFiles] Import en cours: $($file.Name)..." -ForegroundColor Cyan
+    Write-Host "📄 [$fileNumber/$totalFiles] Import en cours: $tableName..." -ForegroundColor Cyan
     Write-Host "   📁 Chemin Windows: $($file.FullName)" -ForegroundColor DarkGray
-    Write-Host "   🐳 Chemin conteneur: /dumps/$($file.Name)" -ForegroundColor DarkGray
+    Write-Host "   🐳 Chemin conteneur: /dumps/$tableName" -ForegroundColor DarkGray
     
     try {
-        # Utiliser docker exec pour importer le fichier via psql dans le conteneur
-        $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -f "/dumps/$($file.Name)" 2>&1
+        # Utiliser \copy pour importer les données
+        $copyCommand = "\copy ${tableName} FROM '/dumps/${tableName}' WITH (FORMAT text, DELIMITER E'\t', NULL '\N');"
+        $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c $copyCommand 2>&1
         if ($LASTEXITCODE -eq 0) {
             $successCount++
-            Write-Host "✅ [$fileNumber/$totalFiles] $($file.Name) importé avec succès" -ForegroundColor Green
+            Write-Host "✅ [$fileNumber/$totalFiles] $tableName importé avec succès" -ForegroundColor Green
         } else {
-            $failedFiles += $file.Name
-            Write-Host "❌ [$fileNumber/$totalFiles] Erreur lors de l'import de $($file.Name)" -ForegroundColor Red
+            $failedFiles += $tableName
+            Write-Host "❌ [$fileNumber/$totalFiles] Erreur lors de l'import de $tableName" -ForegroundColor Red
             Write-Host "   📝 Message d'erreur: $result" -ForegroundColor Red
             Write-Host "   🛑 Arrêt de l'importation..." -ForegroundColor Red
             exit 1
         }
     } catch {
-        $failedFiles += $file.Name
-        Write-Host "❌ [$fileNumber/$totalFiles] Exception lors de l'import de $($file.Name): $($_.Exception.Message)" -ForegroundColor Red
+        $failedFiles += $tableName
+        Write-Host "❌ [$fileNumber/$totalFiles] Exception lors de l'import de $tableName : $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "   🛑 Arrêt de l'importation..." -ForegroundColor Red
         exit 1
     }
@@ -189,19 +214,6 @@ CREATE EXTENSION IF NOT EXISTS earthdistance;
     Write-Host "⚠️  Avertissement: Exception lors de l'installation des extensions" -ForegroundColor Yellow
 }
 
-# Analyser les statistiques
-Write-Host "📊 Mise à jour des statistiques..." -ForegroundColor Yellow
-try {
-    docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "ANALYZE;"
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Analyse terminée" -ForegroundColor Green
-    } else {
-        Write-Host "⚠️  Avertissement: Erreur lors de l'analyse" -ForegroundColor Yellow
-    }
-} catch {
-    Write-Host "⚠️  Avertissement: Exception lors de l'analyse" -ForegroundColor Yellow
-}
-
-Write-Host "✅ Import MusicBrainz terminé avec succès!" -ForegroundColor Green
-Write-Host "🔍 Vous pouvez maintenant créer les vues KPI avec: .\scripts\apply_views.ps1" -ForegroundColor Cyan
+Write-Host "✅ Import MusicBrainz officiel terminé avec succès!" -ForegroundColor Green
+Write-Host "🔍 Vous pouvez maintenant appliquer les index avec: .\scripts\apply_mb_indexes.ps1" -ForegroundColor Cyan
 Write-Host "📊 Base de données accessible via le conteneur: $CONTAINER_NAME" -ForegroundColor Cyan

@@ -63,18 +63,60 @@ if %errorlevel% neq 0 (
 
 echo ✅ Connexion PostgreSQL réussie
 
-REM Étape 3: Créer le schéma KPI
+REM Étape 3: Appliquer le schéma MusicBrainz officiel
+echo 📊 Application du schéma MusicBrainz officiel...
+powershell -ExecutionPolicy Bypass -File scripts/apply_mb_schema.ps1
+if %errorlevel% neq 0 (
+    echo ❌ Erreur lors de l'application du schéma MusicBrainz
+    pause
+    exit /b 1
+)
+
+echo ✅ Schéma MusicBrainz appliqué
+
+REM Étape 4: Importer les données MusicBrainz
+echo 📥 Import des données MusicBrainz...
+powershell -ExecutionPolicy Bypass -File scripts/import_mb.ps1
+if %errorlevel% neq 0 (
+    echo ❌ Erreur lors de l'import des données
+    pause
+    exit /b 1
+)
+
+echo ✅ Données MusicBrainz importées
+
+REM Étape 5: Appliquer les index MusicBrainz
+echo 🔧 Application des index MusicBrainz...
+powershell -ExecutionPolicy Bypass -File scripts/apply_mb_indexes.ps1
+if %errorlevel% neq 0 (
+    echo ❌ Erreur lors de l'application des index
+    pause
+    exit /b 1
+)
+
+echo ✅ Index MusicBrainz appliqués
+
+REM Étape 6: Vérifier le schéma MusicBrainz
+echo 🔍 Vérification du schéma MusicBrainz...
+powershell -ExecutionPolicy Bypass -File scripts/verify_mb_schema.ps1
+if %errorlevel% neq 0 (
+    echo ⚠️  Avertissements lors de la vérification du schéma
+) else (
+    echo ✅ Schéma MusicBrainz vérifié
+)
+
+REM Étape 7: Créer le schéma KPI
 echo 📊 Création du schéma KPI...
 docker exec -i musicbrainz-postgres psql -U %DB_USER% -d %DB_NAME% < sql/init/00_schema.sql
 if %errorlevel% neq 0 (
-    echo ❌ Erreur lors de la création du schéma
+    echo ❌ Erreur lors de la création du schéma KPI
     pause
     exit /b 1
 )
 
 echo ✅ Schéma KPI créé
 
-REM Étape 4: Appliquer les vues KPI
+REM Étape 8: Appliquer les vues KPI
 echo 🔧 Application des vues KPI...
 powershell -ExecutionPolicy Bypass -File scripts/apply_views.ps1
 if %errorlevel% neq 0 (
@@ -85,7 +127,7 @@ if %errorlevel% neq 0 (
 
 echo ✅ Vues KPI appliquées
 
-REM Étape 5: Tests de validation
+REM Étape 9: Tests de validation
 echo 🧪 Tests de validation...
 docker exec -i musicbrainz-postgres psql -U %DB_USER% -d %DB_NAME% < scripts/tests.sql >nul 2>&1
 if %errorlevel% neq 0 (
@@ -115,7 +157,7 @@ docker exec musicbrainz-postgres psql -U %DB_USER% -d %DB_NAME% -c "SELECT viewn
 echo.
 echo 💡 Prochaines étapes:
 echo    1. Configurer Excel/ODBC (voir excel/PowerQuery_guide.md)
-echo    2. Importer le dump MusicBrainz (voir README.md)
-echo    3. Utiliser les vues KPI pour analyser les données
+echo    2. Utiliser les vues KPI pour analyser les données
+echo    3. Vérifier les résultats avec: .\scripts\verify_mb_schema.ps1
 echo.
 pause

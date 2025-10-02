@@ -134,20 +134,60 @@ allfeat-mb-kpi/
    # Démarrer PostgreSQL
    docker-compose up -d
    
+   # Appliquer le schéma MusicBrainz officiel
+   .\scripts\apply_mb_schema.ps1
+   
    # Importer les données MusicBrainz
    .\scripts\import_mb.ps1
+   
+   # Appliquer les index MusicBrainz
+   .\scripts\apply_mb_indexes.ps1
+   
+   # Vérifier le schéma MusicBrainz
+   .\scripts\verify_mb_schema.ps1
+   
+   # Créer le schéma KPI
+   docker exec -i musicbrainz-postgres psql -U musicbrainz -d musicbrainz < sql/init/00_schema.sql
    
    # Appliquer les vues KPI
    .\scripts\apply_views.ps1
    
    # Exécuter les tests
-   docker exec -i musicbrainz-postgres psql -U musicbrainz -d musicbrainz -f /docker-entrypoint-initdb.d/../scripts/tests.sql
+   docker exec -i musicbrainz-postgres psql -U musicbrainz -d musicbrainz < scripts/tests.sql
    ```
 
 4. **Configuration Excel/ODBC**
    - Voir `excel/PowerQuery_guide.md` pour la configuration complète
    - Créer la source de données ODBC `MB_ODBC`
    - Configurer les connexions Power Query
+
+## 🎯 Import officiel MusicBrainz
+
+### Workflow complet
+
+Ce projet utilise la Méthode  (Windows + Docker) pour un import 100% conforme aux pratiques MusicBrainz officielles :
+
+1. **Schéma** : `apply_mb_schema.ps1` télécharge et applique le schéma officiel v30
+2. **Données** : `import_mb.ps1` utilise `\copy` pour importer les données depuis `E:\mbdump` (ou le bon repertoire)
+3. **Index** : `apply_mb_indexes.ps1` applique les index et contraintes officiels
+4. **Vérification** : `verify_mb_schema.ps1` valide l'installation
+5. **KPI** : `apply_views.ps1` crée les vues d'analyse Allfeat
+
+### Avantages de cette Méthode
+
+- ✅ **100% officiel** : Utilise les scripts SQL du dépôt musicbrainz-server
+- ✅ **Version v30** : Compatible avec la dernière version du schéma
+- ✅ **Performance optimale** : `\copy` plus rapide que `pg_restore` pour les gros volumes
+- ✅ **Validation automatique** : Vérification de `SCHEMA_SEQUENCE` et des données
+- ✅ **Index complets** : Tous les index et contraintes officiels appliqués
+- ✅ **Docker uniquement** : Aucun client PostgreSQL local requis
+
+### Prérequis spécifiques
+
+- **Dump MusicBrainz v30** extrait vers `E:\mbdump\` (fichiers sans extension)
+- **Fichier SCHEMA_SEQUENCE** contenant "30"
+- **Connexion Internet** pour télécharger les scripts officiels
+- **Docker Desktop** avec montage `E:\mbdump:/dumps:ro`
 
 ## 📈 Utilisation
 

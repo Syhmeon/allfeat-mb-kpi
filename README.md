@@ -64,20 +64,17 @@ Ce projet configure un environnement PostgreSQL local (via Docker) avec le dump 
 - **Releases** : `allfeat_kpi.confidence_release` + `allfeat_kpi.confidence_release_samples`
 - **Métriques** : Niveau Phase 1 (High/Medium/Low basé sur présence d'IDs + cohérence des liens), Score Phase 2 (0–1 pondéré avec poids explicites), Niveau Phase 2 (High/Medium/Low dérivé du score)
 
-## 📁 Structure du projet
+## 📁 Structure du projet (Stack Windows + Docker)
 
 ```
 allfeat-mb-kpi/
 ├── docker-compose.yml          # Configuration Docker PostgreSQL
 ├── env.example                 # Variables d'environnement
-├── .gitignore                  # Exclusions Git
 ├── README.md                   # Documentation principale
-├── quick_start.sh              # Script de démarrage rapide
-├── scripts/                    # Scripts d'automatisation
-│   ├── import_mb.sh           # Import MusicBrainz (Linux/Mac)
-│   ├── import_mb.ps1          # Import MusicBrainz (Windows)
-│   ├── apply_views.sh         # Application des vues KPI
-│   ├── apply_views.ps1        # Application des vues KPI (Windows)
+├── quick_start_windows.bat     # Script de démarrage rapide Windows
+├── scripts/                    # Scripts d'automatisation PowerShell
+│   ├── import_mb.ps1          # Import MusicBrainz via Docker
+│   ├── apply_views.ps1        # Application des vues KPI
 │   └── tests.sql              # Tests unifiés (smoke + confidence + Power Query)
 ├── sql/                       # Scripts SQL
 │   ├── init/
@@ -93,92 +90,64 @@ allfeat-mb-kpi/
 │       ├── 61_confidence_work.sql
 │       ├── 62_confidence_recording.sql
 │       └── 63_confidence_release.sql
-├── excel/                     # Templates et configuration Excel
+├── excel/                     # Configuration Excel
 │   └── PowerQuery_guide.md    # Guide Power Query unifié
-├── docs/                      # Documentation spécialisée
-│   └── ODBC_Windows_guide.md  # Guide ODBC Windows
-└── dumps/                     # Répertoire pour les dumps MusicBrainz
+├── Context_Cursor/            # Documentation contexte Cursor
+├── .cursor/rules/             # Règles Cursor
+└── log/                       # Logs et suivi
+    └── Bug_tracking.md        # Suivi des bugs
 ```
 
-## 🚀 Installation rapide
+## 🚀 Installation rapide (Windows + Docker)
 
 ### Prérequis
-- **Docker Desktop** (Windows/Mac/Linux)
-- **PostgreSQL Client** (`psql`)
+- **Windows 10/11** avec PowerShell
+- **Docker Desktop** pour Windows
 - **Git** (pour cloner le repository)
 - **Microsoft Excel** (avec Power Query)
 - **Pilote ODBC PostgreSQL** (pour Excel)
 
 ### Ressources système
 - **RAM** : Minimum 8GB (recommandé 16GB)
-- **Stockage** : 50GB d'espace libre
+- **Stockage** : 50GB d'espace libre (disque externe recommandé pour E:\mbdump)
 - **CPU** : 4 cœurs minimum
 
-### Étapes d'installation
+### Workflow d'installation
 
 1. **Cloner le repository**
-   ```bash
+   ```powershell
    git clone <repo-url>
-   cd allfeat-mb-kpi
+   cd "allfeat-mb-kpi"
    ```
 
-2. **Configuration de l'environnement**
-   ```bash
-   cp env.example .env
-   # Modifier .env selon vos besoins (optionnel)
-   ```
+2. **Préparer les données MusicBrainz**
+   - Extraire le dump MusicBrainz vers `E:\mbdump\` (fichiers sans extension)
+   - Le docker-compose.yml monte automatiquement ce répertoire vers `/dumps`
 
 3. **Démarrage automatique**
-   ```bash
-   ./quick_start.sh
+   ```cmd
+   quick_start_windows.bat
    ```
 
    Ou manuellement :
-   ```bash
+   ```powershell
    # Démarrer PostgreSQL
-   docker compose up -d
+   docker-compose up -d
    
-   # Vérifier que le conteneur fonctionne
-   docker compose ps
-   
-   # Tester la connexion
-   psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -c "SELECT version();"
-   ```
-
-4. **Import du dump MusicBrainz**
-   - Télécharger le dump depuis https://musicbrainz.org/doc/MusicBrainz_Database/Download
-   - Placer dans `./dumps/`
-   
-   **Linux/Mac** :
-   ```bash
-   ./scripts/import_mb.sh
-   ```
-   
-   **Windows PowerShell** :
-   ```powershell
+   # Importer les données MusicBrainz
    .\scripts\import_mb.ps1
-   ```
-
-5. **Création du schéma KPI**
-   ```bash
-   psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -f sql/init/00_schema.sql
-   ```
-
-6. **Application des vues KPI**
-   **Linux/Mac** :
-   ```bash
-   ./scripts/apply_views.sh
-   ```
    
-   **Windows PowerShell** :
-   ```powershell
+   # Appliquer les vues KPI
    .\scripts\apply_views.ps1
+   
+   # Exécuter les tests
+   docker exec -i musicbrainz-postgres psql -U musicbrainz -d musicbrainz -f /docker-entrypoint-initdb.d/../scripts/tests.sql
    ```
 
-7. **Tests de validation**
-   ```bash
-   psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -f scripts/tests.sql
-   ```
+4. **Configuration Excel/ODBC**
+   - Voir `excel/PowerQuery_guide.md` pour la configuration complète
+   - Créer la source de données ODBC `MB_ODBC`
+   - Configurer les connexions Power Query
 
 ## 📈 Utilisation
 
@@ -192,9 +161,9 @@ allfeat-mb-kpi/
 
 ### Accès direct PostgreSQL
 
-```bash
-# Connexion
-psql -h 127.0.0.1 -U musicbrainz -d musicbrainz
+```powershell
+# Connexion via Docker
+docker exec -it musicbrainz-postgres psql -U musicbrainz -d musicbrainz
 
 # Requêtes KPI
 SELECT * FROM allfeat_kpi.kpi_isrc_coverage;
@@ -347,12 +316,9 @@ Query took too long to execute
 
 ### Logs et diagnostic
 
-```bash
+```powershell
 # Logs Docker
-docker compose logs postgres
-
-# Logs PostgreSQL
-docker exec musicbrainz-postgres tail -f /var/log/postgresql/postgresql-15-main.log
+docker-compose logs postgres
 
 # Statistiques de performance
 docker exec musicbrainz-postgres psql -U musicbrainz -d musicbrainz -c "
@@ -366,6 +332,9 @@ FROM pg_stat_user_tables
 WHERE schemaname IN ('musicbrainz', 'allfeat_kpi')
 ORDER BY n_tup_ins DESC;
 "
+
+# Test de connectivité
+docker exec musicbrainz-postgres psql -U musicbrainz -d musicbrainz -c "SELECT version();"
 ```
 
 ## 📋 Contraintes Phase 1

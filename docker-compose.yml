@@ -13,7 +13,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./dumps:/dumps:ro
+      - /run/desktop/mnt/host/e/mbdump:/dumps:ro
       - ./sql:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     healthcheck:

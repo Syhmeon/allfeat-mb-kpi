@@ -62,10 +62,13 @@ try {
             $dumpsMountFound = $true
             Write-Host "✅ Volume monté: $($mount.Source) -> /dumps" -ForegroundColor Green
             
-            # Vérifier si c'est le bon répertoire monté
-            if ($mount.Source -eq $DUMPS_DIR) {
+            # Vérifier si c'est le bon répertoire monté (compatible Docker Desktop Windows)
+            $isCorrectMount = ($mount.Source -eq $DUMPS_DIR) -or 
+                             ($mount.Source -eq "/run/desktop/mnt/host/e/mbdump" -and $DUMPS_DIR -eq "E:\mbdump")
+            
+            if ($isCorrectMount) {
                 $correctMount = $true
-                Write-Host "✅ Le bon répertoire est monté ($DUMPS_DIR)" -ForegroundColor Green
+                Write-Host "✅ Le bon répertoire est monté ($DUMPS_DIR -> $($mount.Source))" -ForegroundColor Green
             } else {
                 Write-Host "⚠️  Attention: Vous avez monté [$($mount.Source)] mais vous voulez importer depuis [$DUMPS_DIR]" -ForegroundColor Yellow
                 Write-Host "💡 Solutions possibles:" -ForegroundColor Cyan
@@ -104,12 +107,14 @@ try {
     Write-Host "💡 Assurez-vous que le conteneur peut accéder aux fichiers MusicBrainz via /dumps" -ForegroundColor Cyan
 }
 
-# Vérifier SCHEMA_SEQUENCE
+# Vérifier SCHEMA_SEQUENCE depuis le conteneur
 Write-Host "🔍 Vérification de SCHEMA_SEQUENCE..." -ForegroundColor Yellow
 try {
-    $schemaSequencePath = Join-Path $DUMPS_DIR "SCHEMA_SEQUENCE"
-    if (Test-Path $schemaSequencePath) {
-        $schemaVersion = Get-Content $schemaSequencePath -Raw | ForEach-Object { $_.Trim() }
+    # Lire replication_control depuis le conteneur
+    $replicationControlContent = docker exec $CONTAINER_NAME cat /dumps/replication_control 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        # Extraire le deuxième champ (SCHEMA_SEQUENCE)
+        $schemaVersion = ($replicationControlContent -split '\t')[1]
         Write-Host "📋 Version du schéma détectée: $schemaVersion" -ForegroundColor Green
         
         if ($schemaVersion -ne "30") {
@@ -119,37 +124,116 @@ try {
         }
         Write-Host "✅ Version de schéma compatible: v30" -ForegroundColor Green
     } else {
-        Write-Host "❌ Fichier SCHEMA_SEQUENCE introuvable dans $DUMPS_DIR" -ForegroundColor Red
+        Write-Host "❌ Fichier replication_control introuvable dans /dumps du conteneur" -ForegroundColor Red
         Write-Host "💡 Vérifiez que vous avez extrait le bon dump MusicBrainz" -ForegroundColor Cyan
         exit 1
     }
 } catch {
-    Write-Host "❌ Erreur lors de la lecture de SCHEMA_SEQUENCE: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "❌ Erreur lors de la lecture de replication_control: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
 
-# Lister les fichiers de données (ignorer les fichiers spéciaux)
+# Lister les fichiers de données depuis le conteneur (ignorer les fichiers spéciaux)
 Write-Host "📋 Analyse des fichiers de données..." -ForegroundColor Yellow
-$excludePatterns = @("README", "*_SEQUENCE", "COPYING", "*.md", "*.txt", "*.log")
-$dataFiles = Get-ChildItem -Path $DUMPS_DIR -File | Where-Object { 
-    $file = $_
+$excludePatterns = @("README", "*_SEQUENCE", "COPYING", "*.md", "*.txt", "*.log", "replication_control")
+$containerFileList = docker exec $CONTAINER_NAME ls /dumps 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Impossible de lister les fichiers dans /dumps du conteneur" -ForegroundColor Red
+    exit 1
+}
+
+$allFiles = $containerFileList | Where-Object { 
+    $fileName = $_.Trim()
+    if ([string]::IsNullOrEmpty($fileName)) { return $false }
+    
     $shouldExclude = $false
     foreach ($pattern in $excludePatterns) {
-        if ($file.Name -like $pattern) {
+        if ($fileName -like $pattern) {
             $shouldExclude = $true
             break
         }
     }
     -not $shouldExclude
+} | ForEach-Object { $_.Trim() }
+
+# Trier les fichiers par ordre de dépendance (tables de référence en premier)
+$referenceTables = $allFiles | Where-Object { 
+    $_ -like "*_type" -or $_ -like "*_alias_type" -or $_ -like "*_format" -or $_ -like "*_status" -or $_ -like "*_packaging" -or $_ -like "*_ordering_type" -or $_ -like "*_primary_type" -or $_ -like "*_secondary_type" -or $_ -like "*_creditable_attribute_type" -or $_ -like "*_text_attribute_type" -or $_ -like "*_attribute_type" -or $_ -like "*_allowed_value" -or $_ -like "*_allowed_format" -or $_ -like "*_allowed_value_allowed_format" -or $_ -like "*_attribute_type_allowed_value" -or $_ -like "*_attribute_type_allowed_format" -or $_ -like "*_attribute_type_allowed_value_allowed_format" -or $_ -like "*_attribute_type_allowed_value_allowed_format" -or
+    $_ -eq "gender" -or $_ -eq "script" -or $_ -eq "language" -or $_ -eq "orderable_link_type" -or $_ -eq "link_text_attribute_type" -or $_ -eq "link_creditable_attribute_type"
 }
 
+# Tables principales (sans dépendances complexes) - IMPORTANT: recording et release doivent venir avant medium/track/isrc/iswc
+$mainTables = $allFiles | Where-Object { 
+    $_ -eq "recording" -or $_ -eq "release" -or $_ -eq "area" -or $_ -eq "artist" -or $_ -eq "work" -or $_ -eq "label" -or $_ -eq "place" -or $_ -eq "event" -or $_ -eq "series" -or $_ -eq "genre" -or $_ -eq "instrument" -or $_ -eq "link" -or $_ -eq "url" -or $_ -eq "tag" -or $_ -eq "annotation" -or $_ -eq "editor" -or $_ -eq "edit" -or $_ -eq "vote" -or $_ -eq "cdtoc" -or $_ -eq "iso_3166_1" -or $_ -eq "iso_3166_2" -or $_ -eq "iso_3166_3" -or $_ -eq "country_area"
+}
+
+$otherTables = $allFiles | Where-Object { 
+    $_ -notlike "*_type" -and $_ -notlike "*_alias_type" -and $_ -notlike "*_format" -and $_ -notlike "*_status" -and $_ -notlike "*_packaging" -and $_ -notlike "*_ordering_type" -and $_ -notlike "*_primary_type" -and $_ -notlike "*_secondary_type" -and $_ -notlike "*_creditable_attribute_type" -and $_ -notlike "*_text_attribute_type" -and $_ -notlike "*_attribute_type" -and $_ -notlike "*_allowed_value" -and $_ -notlike "*_allowed_format" -and $_ -notlike "*_allowed_value_allowed_format" -and $_ -notlike "*_attribute_type_allowed_value" -and $_ -notlike "*_attribute_type_allowed_format" -and $_ -notlike "*_attribute_type_allowed_value_allowed_format" -and $_ -notlike "*_attribute_type_allowed_value_allowed_format" -and
+    $_ -ne "gender" -and $_ -ne "script" -and $_ -ne "language" -and $_ -ne "orderable_link_type" -and $_ -ne "link_text_attribute_type" -and $_ -ne "link_creditable_attribute_type" -and
+    $_ -ne "area" -and $_ -ne "artist" -and $_ -ne "recording" -and $_ -ne "release" -and $_ -ne "work" -and $_ -ne "label" -and $_ -ne "place" -and $_ -ne "event" -and $_ -ne "series" -and $_ -ne "genre" -and $_ -ne "instrument" -and $_ -ne "medium" -and $_ -ne "track" -and $_ -ne "link" -and $_ -ne "url" -and $_ -ne "tag" -and $_ -ne "annotation" -and $_ -ne "editor" -and $_ -ne "edit" -and $_ -ne "vote" -and $_ -ne "cdtoc" -and $_ -ne "isrc" -and $_ -ne "iswc" -and $_ -ne "iso_3166_1" -and $_ -ne "iso_3166_2" -and $_ -ne "iso_3166_3" -and $_ -ne "country_area"
+}
+
+# Ordre d'import : tables de référence d'abord, puis tables principales, puis autres tables
+$dataFiles = ($referenceTables + $mainTables + $otherTables) | ForEach-Object { [PSCustomObject]@{ Name = $_ } }
+
 if ($dataFiles.Count -eq 0) {
-    Write-Host "❌ Aucun fichier de données trouvé dans $DUMPS_DIR" -ForegroundColor Red
+    Write-Host "❌ Aucun fichier de données trouvé dans /dumps du conteneur" -ForegroundColor Red
     Write-Host "💡 Vérifiez que le dump MusicBrainz est correctement extrait" -ForegroundColor Cyan
     exit 1
 }
 
 Write-Host "📦 Trouvé $($dataFiles.Count) fichiers de données à importer" -ForegroundColor Green
+Write-Host "📋 Ordre d'import: $($referenceTables.Count) tables de référence, puis $($mainTables.Count) tables principales, puis $($otherTables.Count) autres tables" -ForegroundColor Cyan
+
+# Vérifier si on doit reprendre un import partiel
+Write-Host "🔍 Vérification de l'état actuel des données..." -ForegroundColor Yellow
+$importedTables = @()
+$failedTable = ""
+
+try {
+    # Vérifier si 'recording' existe (table précédente de 'isrc')
+    $recordingCount = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM musicbrainz.recording;" 2>&1
+    
+    if ($LASTEXITCODE -eq 0 -and $recordingCount.Trim() -as [int] -gt 0) {
+        Write-Host "✅ Table 'recording' déjà importée avec succès ($($recordingCount.Trim()) lignes)" -ForegroundColor Green
+        Write-Host "🚀 Reprise depuis la table 'isrc' (qui a échoué)..." -ForegroundColor Cyan
+        
+        # Trouver l'index de 'isrc' et reprendre depuis là
+        $isrcIndex = -1
+        for ($i = 0; $i -lt $dataFiles.Count; $i++) {
+            if ($dataFiles[$i].Name -eq "isrc") {
+                $isrcIndex = $i
+                break
+            }
+        }
+        
+        if ($isrcIndex -gt -1) {
+            Write-Host "📍 Reprise depuis l'index $($isrcIndex + 1) ('isrc' et suivantes)" -ForegroundColor Cyan
+            Write-Host "🧹 Nettoyage des tables problématiques entre 'recording' et 'isrc'..." -ForegroundColor Yellow
+            
+            # Supprimer les tables qui pourraient causer des conflits
+            $problematicTables = @("isrc", "iswc")
+            foreach ($table in $problematicTables) {
+                try {
+                    $result = docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "DELETE FROM musicbrainz.$table;" 2>&1
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "🗑️ Table $table nettoyée" -ForegroundColor Green
+                    }
+                } catch {
+                    Write-Host "⚠️ Impossible de nettoyer $table" -ForegroundColor Yellow
+                }
+            }
+            
+            $dataFiles = $dataFiles[$isrcIndex..($dataFiles.Count - 1)]
+        }
+    } else {
+        Write-Host "💡 Table 'recording' non trouvée ou vide - si l'ordre est correct, 'recording' doit être importée avant 'isrc'" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "⚠️ Impossible de vérifier l'état des tables" -ForegroundColor Yellow
+}
+
+# Les tables avec dataFiles mis à jour sont déjà filtrées si nécessaire
 
 # Importer chaque fichier de données avec \copy
 Write-Host "📥 Import des données MusicBrainz avec \\copy (cela peut prendre plusieurs heures)..." -ForegroundColor Yellow
@@ -165,7 +249,6 @@ for ($i = 0; $i -lt $totalFiles; $i++) {
     $tableName = $file.Name
     
     Write-Host "📄 [$fileNumber/$totalFiles] Import en cours: $tableName..." -ForegroundColor Cyan
-    Write-Host "   📁 Chemin Windows: $($file.FullName)" -ForegroundColor DarkGray
     Write-Host "   🐳 Chemin conteneur: /dumps/$tableName" -ForegroundColor DarkGray
     
     try {
@@ -197,6 +280,9 @@ if ($failedFiles.Count -gt 0) {
     Write-Host "   📋 Fichiers problématiques: $($failedFiles -join ', ')" -ForegroundColor Red
     exit 1
 }
+
+# Les contraintes sont déjà actives après TRUNCATE CASCADE
+Write-Host "✅ Contraintes FK actives après nettoyage" -ForegroundColor Green
 
 # Créer les extensions nécessaires
 Write-Host "🔧 Installation des extensions PostgreSQL..." -ForegroundColor Yellow

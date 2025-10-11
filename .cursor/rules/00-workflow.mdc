@@ -5,7 +5,15 @@ alwaysApply: true
 # Workflow — Allfeat MusicBrainz KPI (Phase 1, Source of Truth)
 
 ## Objectif
-Configurer un PostgreSQL local (via Docker) avec le dump MusicBrainz, puis créer le schéma `allfeat_kpi` contenant 10 vues KPI pour mesurer la qualité et la complétude des métadonnées.
+Configurer un PostgreSQL local (via MusicBrainz Docker officiel) avec la base MusicBrainz complète, puis créer le schéma `allfeat_kpi` contenant 10 vues KPI pour mesurer la qualité et la complétude des métadonnées.
+
+## Approche technique (mise à jour 2025-10-11)
+**Migration vers MusicBrainz Docker officiel (v30)** - Approche recommandée par expert senior  
+- Import automatisé et optimisé (2-6h au lieu de 100h+ avec import manuel)  
+- Base MusicBrainz complète (375 tables) pré-configurée  
+- Fiabilité maximale (battle-tested par la communauté MusicBrainz)  
+- Maintenance simplifiée (mises à jour via `docker compose pull`)  
+- Documentation : voir `Context_Cursor/Expert_Evaluation.md` pour analyse complète
 
 ## KPI
 - Couverture ISRC (% enregistrements avec ISRC)  
@@ -22,10 +30,11 @@ Configurer un PostgreSQL local (via Docker) avec le dump MusicBrainz, puis crée
 
 ## Ordre de lecture Cursor
 1) /Context_Cursor/PRD.md  
-2) /Context_Cursor/Implementation.md (étape active)  
-3) /Context_Cursor/Architecture.md (contrats I/O)  
-4) /.cursor/rules/30-prompts-base.mdc  
-5) /Context_Cursor/Testing.md (si requis)  
+2) /Context_Cursor/Expert_Evaluation.md (approche technique validée)  
+3) /Context_Cursor/Implementation.md (étape active)  
+4) /Context_Cursor/Architecture.md (contrats I/O)  
+5) /.cursor/rules/30-prompts-base.mdc  
+6) /Context_Cursor/Testing.md (si requis)  
 
 ## Règles
 - Une sous-étape à la fois (définie dans Implementation.md)  

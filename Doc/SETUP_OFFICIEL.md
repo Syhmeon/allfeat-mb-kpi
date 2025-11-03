@@ -37,7 +37,27 @@
 
 ## 🔍 Monitoring de l'import
 
-### Vérifier l'état du conteneur
+### ✅ Vérifier l'état de l'import (RECOMMANDÉ)
+
+**Script de diagnostic complet :**
+
+```powershell
+# Option 1: Avec helper PowerShell (recommandé)
+. .\scripts\docker_helpers.ps1
+Get-MBImportStatus
+
+# Option 2: Script direct
+.\scripts\check_import_status.ps1
+```
+
+Ce script vérifie :
+- ✅ État Docker et conteneur
+- ✅ Accessibilité PostgreSQL
+- ✅ Nombre de tables créées (~375 attendues)
+- ✅ Volume de données importées (recording, artist, work, release)
+- ✅ Estimation de progression avec recommandations
+
+### Vérifier l'état du conteneur (basique)
 
 ```powershell
 docker ps --filter "name=musicbrainz"
@@ -63,7 +83,7 @@ docker compose logs --tail 100 musicbrainz
 ### Vérifier la progression (une fois PostgreSQL accessible)
 
 ```powershell
-docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
 SELECT 
     schemaname,
     tablename,
@@ -82,7 +102,7 @@ LIMIT 10;
 
 ### Critères de succès
 
-- ✅ PostgreSQL accessible : `docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "SELECT 1;"`
+- ✅ PostgreSQL accessible : `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "SELECT 1;"`
 - ✅ Table `musicbrainz.recording` : > 50 millions de lignes
 - ✅ Table `musicbrainz.artist` : > 2 millions de lignes
 - ✅ Table `musicbrainz.work` : > 30 millions de lignes
@@ -102,7 +122,7 @@ docker compose up -d
 #### 2. Initialiser le schéma Allfeat KPI
 
 ```powershell
-Get-Content sql\init\00_schema.sql | docker exec -i musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz
+Get-Content sql\init\00_schema.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
 ```
 
 #### 3. Appliquer les 10 vues KPI
@@ -111,14 +131,14 @@ Get-Content sql\init\00_schema.sql | docker exec -i musicbrainzkpi-db-1 psql -U 
 $views = Get-ChildItem sql\views\*.sql | Sort-Object Name
 foreach ($v in $views) {
     Write-Host "Applique $($v.Name)..."
-    Get-Content $v.FullName | docker exec -i musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz
+    Get-Content $v.FullName | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
 }
 ```
 
 #### 4. Tester les vues
 
 ```powershell
-Get-Content scripts\tests.sql | docker exec -i musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz их
+Get-Content scripts\tests.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
 ```
 
 ---
@@ -137,20 +157,20 @@ docker compose restart   # Redémarrer sans recréer
 
 ```powershell
 # Shell interactif
-docker exec -it musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz
+docker exec -it musicbrainz-db psql -U musicbrainz -d musicbrainz
 
 # Exécuter une requête
-docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "SELECT COUNT(*) FROM musicbrainz.recording;"
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "SELECT COUNT(*) FROM musicbrainz.recording;"
 
 # Exécuter un script SQL
-Get-Content script.sql | docker exec -i musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz
+Get-Content script.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
 ```
 
 ### Vérifier l'espace disque
 
 ```powershell
 docker system df
-docker exec musicbrainzkpi-db-1 df -h
+docker exec musicbrainz-db df -h
 ```
 
 ---
@@ -179,10 +199,10 @@ Voir `excel/PowerQuery_guide.md` pour les requêtes pré-configurées.
 
 ```powershell
 # Vérifier les processus actifs
-docker exec musicbrainzkpi-db-1 ps aux | grep postgres
+docker exec musicbrainz-db ps aux | grep postgres
 
 # Vérifier les requêtes en cours
-docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
 SELECT pid, application_name, state, query_start, LEFT(query, 50) 
 FROM pg_stat_activity 
 WHERE datname = 'musicbrainz';

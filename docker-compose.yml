@@ -9,6 +9,7 @@ volumes:
 
 services:
   db:
+    container_name: musicbrainz-db
     image: metabrainz/musicbrainz-docker-db:${POSTGRES_VERSION:-16}-build${DB_BUILD_SEQUENCE:-0}
     logging:
       driver: "json-file"

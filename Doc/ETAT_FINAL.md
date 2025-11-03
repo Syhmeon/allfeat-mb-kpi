@@ -24,7 +24,7 @@
 ## 📊 ÉTAT ACTUEL
 
 ### Services
-- ✅ `musicbrainzkpi-db-1` : Running (PostgreSQL 16, port 5432)
+- ✅ `musicbrainz-db` : Running (PostgreSQL 16, port 5432)
 - ✅ `musicbrainzkpi-redis-1` : Running
 - ⏳ Import en cours : Conteneur temporaire exécutant `createdb.sh`
 
@@ -70,7 +70,7 @@ Get-Content import_final.log -Wait -Tail 50
 
 ```powershell
 # Compter les tables créées
-docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
 SELECT COUNT(*) 
 FROM information_schema.tables 
 WHERE table_schema = 'musicbrainz';
@@ -78,7 +78,7 @@ WHERE table_schema = 'musicbrainz';
 # Attendu après import : ~375 tables
 
 # Vérifier les données importées
-docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
 SELECT 
     schemaname,
     tablename,
@@ -94,7 +94,7 @@ LIMIT 10;
 ### Taille de la base
 
 ```powershell
-docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
 SELECT pg_size_pretty(pg_database_size('musicbrainz')) as database_size;
 "
 # Attendu après import : ~80 GB
@@ -108,7 +108,7 @@ Une fois l'import terminé, vérifier :
 
 1. **Base existe et est accessible**
    ```powershell
-   docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "SELECT 1;"
+   docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "SELECT 1;"
    ```
 
 2. **Tables créées** : ~375 tables dans le schéma `musicbrainz`
@@ -127,7 +127,7 @@ Une fois l'import terminé, vérifier :
 ### 1. Vérifier que l'import est terminé
 
 ```powershell
-docker exec musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
 SELECT COUNT(*) as table_count 
 FROM information_schema.tables 
 WHERE table_schema = 'musicbrainz';
@@ -138,7 +138,7 @@ WHERE table_schema = 'musicbrainz';
 ### 2. Créer le schéma Allfeat KPI
 
 ```powershell
-Get-Content sql\init\00_schema.sql | docker exec -i musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz
+Get-Content sql\init\00_schema.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
 ```
 
 ### 3. Appliquer les 10 vues KPI
@@ -147,14 +147,14 @@ Get-Content sql\init\00_schema.sql | docker exec -i musicbrainzkpi-db-1 psql -U 
 $views = Get-ChildItem sql\views\*.sql | Sort-Object Name
 foreach ($v in $views) {
     Write-Host "✅ Applique $($v.Name)..."
-    Get-Content $v.FullName | docker exec -i musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz
+    Get-Content $v.FullName | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
 }
 ```
 
 ### 4. Tester
 
 ```powershell
-Get-Content scripts\tests.sql | docker exec -i musicbrainzkpi-db-1 psql -U musicbrainz -d musicbrainz
+Get-Content scripts\tests.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
 ```
 
 ---

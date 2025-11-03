@@ -121,6 +121,24 @@ LIMIT 10;
 "@
 }
 
+function Get-MBImportStatus {
+    <#
+    .SYNOPSIS
+    Detailed diagnostic of MusicBrainz import status
+    
+    .DESCRIPTION
+    Comprehensive check of import progress with recommendations
+    
+    .EXAMPLE
+    Get-MBImportStatus
+    #>
+    if (Test-Path "scripts\check_import_status.ps1") {
+        & ".\scripts\check_import_status.ps1"
+    } else {
+        Write-ColorOutput "❌ Script check_import_status.ps1 not found" "Red"
+    }
+}
+
 # ============================================================================
 # DATABASE ACCESS
 # ============================================================================
@@ -370,7 +388,8 @@ function Show-MBHelp {
     Write-ColorOutput "`n🔍 Monitoring & Logs:" "Yellow"
     Write-ColorOutput "  Show-MBLogs              - Monitor import logs in real-time" "White"
     Write-ColorOutput "  Get-MBStatus             - Check container and database status" "White"
-    Write-ColorOutput "  Get-MBImportProgress     - Check import progress" "White"
+    Write-ColorOutput "  Get-MBImportProgress     - Check import progress (top 10 tables)" "White"
+    Write-ColorOutput "  Get-MBImportStatus       - Detailed import diagnostic & recommendations" "White"
     
     Write-ColorOutput "`n🐚 Database Access:" "Yellow"
     Write-ColorOutput "  Enter-MBShell            - Open interactive psql shell" "White"

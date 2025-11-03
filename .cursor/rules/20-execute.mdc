@@ -4,7 +4,7 @@ alwaysApply: false
 
 # Execute — Step Executor
 
-1) Lire l’étape active dans /context/Implementation.md  
+1) Lire l'état actuel dans /Doc/ETAT_FINAL.md  
 2) Lister les fichiers impactés (≤20)  
 3) Implémenter la modification minimale  
 4) Lancer `scripts/apply_views.*` puis `scripts/tests.sql`  

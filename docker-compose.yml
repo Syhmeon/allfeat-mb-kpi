@@ -1,74 +1,59 @@
-# MusicBrainz Docker Official Setup for KPI Analysis
-# Version: v30
-# Purpose: Database-only configuration for MusicBrainz KPI profiling
-
-version: '3.8'
-
-services:
-  musicbrainz-db:
-    image: musicbrainz/musicbrainz-db:v-2024-05-23-schema-change
-    container_name: musicbrainz-db
-    environment:
-      # Database configuration
-      POSTGRES_USER: ${MB_DB_USER:-musicbrainz}
-      POSTGRES_PASSWORD: ${MB_DB_PASSWORD:-musicbrainz}
-      POSTGRES_DB: ${MB_DB_NAME:-musicbrainz_db}
-      
-      # MusicBrainz configuration
-      MUSICBRAINZ_USE_PROXY: ${MB_USE_PROXY:-0}
-      MUSICBRAINZ_SERVER_PROCESSES: ${MB_SERVER_PROCESSES:-5}
-      
-      # Download configuration
-      MUSICBRAINZ_DOWNLOAD_LATEST: ${MB_DOWNLOAD_LATEST:-1}
-      MUSICBRAINZ_DOWNLOAD_MIRROR: ${MB_DOWNLOAD_MIRROR:-https://data.musicbrainz.org}
-      
-      # Performance tuning
-      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-2GB}
-      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
-      POSTGRES_WORK_MEM: ${POSTGRES_WORK_MEM:-256MB}
-      POSTGRES_MAINTENANCE_WORK_MEM: ${POSTGRES_MAINTENANCE_WORK_MEM:-1GB}
-      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-4GB}
-    
-    ports:
-      - "${MB_DB_PORT:-5432}:5432"
-    
-    volumes:
-      # Database data persistence
-      - mb_postgres_data:/var/lib/postgresql/data
-      
-      # Optional: Mount SQL initialization scripts
-      - ./sql/init:/docker-entrypoint-initdb.d/90-allfeat-kpi:ro
-    
-    restart: unless-stopped
-    
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${MB_DB_USER:-musicbrainz} -d ${MB_DB_NAME:-musicbrainz_db}"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 300s  # 5 minutes de démarrage (import initial)
-    
-    # Resource limits (adjust based on your hardware)
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
-        reservations:
-          cpus: '2'
-          memory: 4G
+# Description: Database-only mirror, as an alternative to 'default'
+# Utilise directement les images MetaBrainz officielles (pas de build local nécessaire)
 
 volumes:
-  mb_postgres_data:
+  pgdata:
     driver: local
-    # Optional: Specify a custom location for data
-    # driver_opts:
-    #   type: none
-    #   device: /path/to/musicbrainz/data
-    #   o: bind
+  dbdump:
+    driver: local
 
-# Networks (optionnel)
-networks:
-  default:
-    name: musicbrainz_network
-    driver: bridge
+services:
+  db:
+    image: metabrainz/musicbrainz-docker-db:${POSTGRES_VERSION:-16}-build${DB_BUILD_SEQUENCE:-0}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+    restart: unless-stopped
+    command: postgres -c "shared_buffers=2048MB"
+    env_file:
+      - ./default/postgres.env
+    shm_size: "2GB"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  musicbrainz:
+    image: metabrainz/musicbrainz-docker-musicbrainz:${MUSICBRAINZ_SERVER_VERSION:-v-2025-10-13.0}-build${MUSICBRAINZ_BUILD_SEQUENCE:-1}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "50"
+    volumes:
+      - dbdump:/media/dbdump
+    restart: unless-stopped
+    env_file:
+      - ./default/postgres.env
+    environment:
+      - MUSICBRAINZ_BASE_FTP_URL=${MUSICBRAINZ_BASE_FTP_URL:-}
+      - MUSICBRAINZ_BASE_DOWNLOAD_URL=${MUSICBRAINZ_BASE_DOWNLOAD_URL:-https://data.metabrainz.org/pub/musicbrainz}
+      - MUSICBRAINZ_WEB_SERVER_HOST=${MUSICBRAINZ_WEB_SERVER_HOST:-localhost}
+      - MUSICBRAINZ_WEB_SERVER_PORT=${MUSICBRAINZ_WEB_SERVER_PORT:-5000}
+    command: load-crontab-only.sh
+    depends_on:
+      - db
+      - redis
+
+  redis:
+    image: redis:3-alpine
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+    restart: unless-stopped
+    expose:
+      - "6379"

@@ -13,7 +13,7 @@ Configurer un PostgreSQL local (via MusicBrainz Docker officiel) avec la base Mu
 - Base MusicBrainz complète (375 tables) pré-configurée  
 - Fiabilité maximale (battle-tested par la communauté MusicBrainz)  
 - Maintenance simplifiée (mises à jour via `docker compose pull`)  
-- Documentation : voir `Context_Cursor/Expert_Evaluation.md` pour analyse complète
+- Documentation : voir `.cursor/rules/40-Expert_Evaluation.md` pour analyse complète
 
 ## KPI
 - Couverture ISRC (% enregistrements avec ISRC)  
@@ -29,15 +29,12 @@ Configurer un PostgreSQL local (via MusicBrainz Docker officiel) avec la base Mu
 - Parties prenantes business  
 
 ## Ordre de lecture Cursor
-1) /Context_Cursor/PRD.md  
-2) /Context_Cursor/Expert_Evaluation.md (approche technique validée)  
-3) /Context_Cursor/Implementation.md (étape active)  
-4) /Context_Cursor/Architecture.md (contrats I/O)  
-5) /.cursor/rules/30-prompts-base.mdc  
-6) /Context_Cursor/Testing.md (si requis)  
+1) /.cursor/rules/40-Expert_Evaluation.md (approche technique validée - analyse complète)  
+2) /.cursor/rules/30-prompts-base.mdc  
+3) /Doc/ETAT_FINAL.md (état actuel et prochaines étapes)  
 
 ## Règles
-- Une sous-étape à la fois (définie dans Implementation.md)  
+- Une sous-étape à la fois (voir Doc/ETAT_FINAL.md pour l'état actuel)  
 - Lancer `scripts/tests.sql` après modifs  
 - Compatibilité Windows/Unix (`.sh` et `.ps1`)  
 - Stop si ratio hors [0;1], PK/FK nulles, cartésiens non maîtrisés → log dans /logs/Bug_tracking.md  

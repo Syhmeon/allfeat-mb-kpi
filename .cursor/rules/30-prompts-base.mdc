@@ -8,6 +8,6 @@ alwaysApply: false
 - Ajouter commentaires I/O et erreurs attendues  
 - SQL : expliquer clés d’index, stratégie de join, filtres qualité  
 - Scripts : maintenir compatibilité Linux/Mac (sh) et Windows (ps1)  
-- Commits : atomiques, alignés sur Implementation.md  
+- Commits : atomiques, alignés sur l'état actuel (Doc/ETAT_FINAL.md)  
 
 ---

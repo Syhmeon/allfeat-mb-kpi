@@ -1,0 +1,70 @@
+---
+alwaysApply: true
+---
+
+# Contexte Essentiel — Allfeat MusicBrainz KPI (AI-ready)
+
+## Objectif
+PostgreSQL local via MusicBrainz Docker officiel (v30) + schéma `allfeat_kpi` avec 10 vues KPI pour mesurer qualité/completude.
+
+## Connexion DB (par défaut)
+```
+Host: 127.0.0.1
+Port: 5432
+Database: musicbrainz
+User: musicbrainz
+Password: musicbrainz
+```
+
+## Schémas et vues
+- Schéma source: `musicbrainz` (375 tables)
+- Schéma analytique: `allfeat_kpi`
+- Vues Phase 1 (10):
+  - `kpi_isrc_coverage`, `kpi_iswc_coverage`
+  - `party_missing_ids_artist`
+  - `dup_isrc_candidates`
+  - `rec_on_release_without_work`, `work_without_recording`
+  - `confidence_artist`, `confidence_work`, `confidence_recording`, `confidence_release`
+
+## Garde-fous (à respecter strictement)
+- Ratios KPI ∈ [0;1]
+- ISRC unique par recording
+- Aucune PK/FK nulle
+- Pas de jointures cartésiennes non filtrées
+
+## Workflow minimal (Phase 1)
+1) Démarrer import auto: `docker compose up -d` (image MusicBrainz officielle)
+2) Suivre progression: `docker logs -f musicbrainz-db` ou `.\n+   scripts\monitor_import.ps1`
+3) Créer schéma KPI: `Initialize-AllfeatKPI`
+4) Appliquer vues: `Apply-KPIViews`
+5) Tester: `Test-KPIViews` ou `docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz < scripts/tests.sql`
+
+## Scripts clés
+- `scripts/docker_helpers.ps1`: `Show-MBHelp`, `Get-MBStatus`, `Get-MBImportProgress`, `Initialize-AllfeatKPI`, `Apply-KPIViews`, `Test-KPIViews`
+- `quick_start_docker.ps1`: tout-en-un (peut utiliser `-SkipImport` après import)
+
+## Fichiers source (référence)
+- Docs: `README.md`, `Doc/SETUP_OFFICIEL.md`, `Doc/ETAT_FINAL.md`
+- Contexte: `.cursor/rules/40-Expert_Evaluation.md` (analyse technique complète)
+- SQL: `sql/init/00_schema.sql`, `sql/views/*.sql`
+- Tests: `scripts/tests.sql`
+
+## Tables MusicBrainz principalement utilisées (12 ≈)
+`recording`, `work`, `artist`, `release`, `medium`, `track`, `artist_credit`, `artist_credit_name`, `recording_work`, `artist_ipi`, `artist_isni` (+ optionnel `artist_url`).
+
+## Critères succès import
+- `recording` > 50M, `artist` > 2M, `work` > 30M
+- Healthcheck conteneur: healthy
+- PostgreSQL accessible sur 5432
+
+## Arrêts/Logs
+- Stop si: ratio hors [0;1], PK/FK nulles, cartésiens non filtrés
+- Log: `log/Bug_tracking.md`
+
+## Excel/ODBC (optionnel)
+- DSN: `MB_ODBC` → `localhost:5432/musicbrainz`
+- Guide: `excel/PowerQuery_guide.md`
+
+---
+Ce fichier est volontairement concis et référentiel: il pointe vers les sources canoniques et rappelle les invariants critiques pour limiter la charge contexte.
+

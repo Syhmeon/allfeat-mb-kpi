@@ -95,23 +95,21 @@ allfeat-mb-kpi/
 │       └── 63_confidence_release.sql
 ├── excel/                        # Configuration Excel
 │   └── PowerQuery_guide.md       # Guide Power Query unifié
-├── Context_Cursor/               # Documentation contexte Cursor
-│   ├── PRD.md                    # Product Requirements Document
-│   ├── Implementation.md         # Plan d'implémentation
-│   ├── Architecture.md           # Architecture technique
-│   ├── Expert_Evaluation.md      # 🆕 Analyse des approches techniques
-│   └── ...
 ├── .cursor/rules/                # Règles Cursor
+│   └── 40-Expert_Evaluation.md   # Analyse technique complète (4 approches évaluées)
 └── log/                          # Logs et suivi
     └── Bug_tracking.md           # Suivi des bugs
 ```
 
-### 📦 Scripts obsolètes (archivés)
-- ~~`import_mb.ps1`~~ → Remplacé par import automatique Docker
-- ~~`import_mb_fast.ps1`~~ → Remplacé par import automatique Docker
-- ~~`apply_mb_schema.ps1`~~ → Inclus dans MusicBrainz Docker
-- ~~`apply_mb_indexes.ps1`~~ → Inclus dans MusicBrainz Docker
-- ~~`verify_mb_schema.ps1`~~ → Inclus dans MusicBrainz Docker
+### 📦 Scripts disponibles
+**Scripts actifs :**
+- `scripts/apply_views.ps1` → Applique les 10 vues KPI sur la base MusicBrainz
+- `scripts/docker_helpers.ps1` → Fonctions helper PowerShell pour Docker
+- `scripts/monitor_import.ps1` → Monitoring de l'import en temps réel
+- `scripts/tests.sql` → Tests de validation des vues KPI
+- `quick_start_docker.ps1` → Script tout-en-un pour démarrer le projet
+
+**Note :** Les anciens scripts d'import manuel ont été supprimés car remplacés par l'import automatique de MusicBrainz Docker officiel.
 
 ## 🚀 Installation rapide (Windows + MusicBrainz Docker)
 
@@ -131,50 +129,72 @@ allfeat-mb-kpi/
 
 ### 🆕 Workflow d'installation (approche MusicBrainz Docker officiel)
 
-#### **Étape 1 : Cloner le repository**
+> **⚡ Quick Start :** Utilisez le script automatisé `.\quick_start_docker.ps1` pour tout configurer en une seule commande !
+
+> **📚 Guide détaillé :** Consultez `DOCKER_SETUP.md` pour la documentation complète
+
+#### **Option A : Script automatisé (Recommandé)**
+
 ```powershell
-git clone <repo-url>
-cd "allfeat-mb-kpi"
+# Lancer le quick start (interactif)
+.\quick_start_docker.ps1
+
+# Le script va :
+# 1. Vérifier les prérequis (Docker, espace disque)
+# 2. Démarrer le conteneur MusicBrainz
+# 3. Monitorer l'import automatique (2-6h)
+# 4. Créer le schéma allfeat_kpi
+# 5. Appliquer les 10 vues KPI
+# 6. Exécuter les tests de validation
 ```
 
-#### **Étape 2 : Configuration initiale**
-```powershell
-# Copier le fichier d'environnement
-copy env.example .env
+#### **Option B : Étape par étape manuelle**
 
-# Éditer .env si nécessaire (ports, credentials, etc.)
-```
-
-#### **Étape 3 : Démarrer MusicBrainz Docker**
+**Étape 1 : Démarrer MusicBrainz Docker**
 ```powershell
-# Lancer les conteneurs (base de données + import automatique)
+# Lancer le conteneur (import automatique démarre)
 docker compose up -d
 
-# Suivre les logs de l'import (2-6h estimées)
-docker compose logs -f musicbrainz-db
+# Suivre les logs de l'import en temps réel
+docker logs -f musicbrainz-db
+
+# Ou utiliser les helpers PowerShell
+. .\scripts\docker_helpers.ps1
+Show-MBLogs
 ```
 
-⏳ **Attendre la fin de l'import automatique** (message "Database import completed" dans les logs)
+⏳ **Attendre la fin de l'import automatique (2-6h)**  
+Critère de succès : `recording` count > 50 millions
 
-#### **Étape 4 : Créer le schéma KPI**
+**Étape 2 : Vérifier que la base est prête**
 ```powershell
-# Créer le schéma allfeat_kpi
-docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db < sql/init/00_schema.sql
-
-# Appliquer les 10 vues KPI
-.\scripts\apply_views.ps1
-
-# Valider l'installation avec les tests
-docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db < scripts/tests.sql
+# Utiliser le helper
+. .\scripts\docker_helpers.ps1
+Get-MBStatus
+Get-MBImportProgress
 ```
 
-#### **Étape 5 : Configuration Excel/ODBC (optionnel)**
+**Étape 3 : Créer le schéma KPI**
+```powershell
+# Option 1: Avec helper
+. .\scripts\docker_helpers.ps1
+Initialize-AllfeatKPI
+Apply-KPIViews
+Test-KPIViews
+
+# Option 2: Manuellement
+docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz < sql\init\00_schema.sql
+.\scripts\apply_views.ps1 -DB_NAME "musicbrainz"
+docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz < scripts\tests.sql
+```
+
+**Étape 4 : Configuration Excel/ODBC (optionnel)**
 - Voir `excel/PowerQuery_guide.md` pour la configuration complète
 - Créer la source de données ODBC `MB_ODBC`
 - **Paramètres de connexion** :
   - Host: `localhost`
   - Port: `5432`
-  - Database: `musicbrainz_db`
+  - Database: `musicbrainz`
   - User: `musicbrainz`
   - Password: `musicbrainz`
 
@@ -183,17 +203,21 @@ docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db < scripts/te
 ### ⚙️ Gestion des conteneurs
 
 ```powershell
-# Démarrer les conteneurs
-docker compose up -d
+# Utiliser les helpers PowerShell (Recommandé)
+. .\scripts\docker_helpers.ps1
+Show-MBHelp                  # Afficher toutes les commandes
 
-# Arrêter les conteneurs
-docker compose down
+Start-MBDocker               # Démarrer
+Stop-MBDocker                # Arrêter
+Restart-MBDocker             # Redémarrer
+Show-MBLogs                  # Voir les logs en temps réel
+Get-MBStatus                 # Vérifier l'état
 
-# Voir les logs
-docker compose logs -f musicbrainz-db
-
-# Redémarrer après modification
-docker compose restart
+# Ou commandes Docker directes
+docker compose up -d         # Démarrer
+docker compose down          # Arrêter
+docker compose restart       # Redémarrer
+docker logs -f musicbrainz-db    # Logs
 
 # Mettre à jour vers nouvelle version MusicBrainz
 docker compose pull

@@ -13,11 +13,12 @@ WITH isrc_groups AS (
         ARRAY_AGG(ac.name ORDER BY r.id) as artist_credits,
         ARRAY_AGG(r.length ORDER BY r.id) as lengths,
         ARRAY_AGG(r.comment ORDER BY r.id) as comments
-    FROM musicbrainz.recording r
+    FROM musicbrainz.isrc i
+    INNER JOIN musicbrainz.recording r ON i.recording = r.id
     LEFT JOIN musicbrainz.artist_credit ac ON r.artist_credit = ac.id
-    WHERE r.isrc IS NOT NULL 
+    WHERE i.isrc IS NOT NULL 
       AND r.edits_pending = 0
-    GROUP BY isrc
+    GROUP BY i.isrc
     HAVING COUNT(*) > 1
 ),
 isrc_analysis AS (
@@ -109,7 +110,7 @@ ORDER BY ia.duplicate_risk_score DESC, ia.duplicate_count DESC;
 -- Vue détaillée pour les échantillons de doublons ISRC
 CREATE OR REPLACE VIEW allfeat_kpi.dup_isrc_candidates_samples AS
 SELECT 
-    r.isrc,
+    i.isrc,
     r.id as recording_id,
     r.name as recording_name,
     r.gid as recording_gid,
@@ -118,20 +119,22 @@ SELECT
     r.comment,
     r.last_updated,
     -- Informations sur le groupe de doublons
-    COUNT(*) OVER (PARTITION BY r.isrc) as group_size,
-    ROW_NUMBER() OVER (PARTITION BY r.isrc ORDER BY r.id) as group_rank
-FROM musicbrainz.recording r
+    COUNT(*) OVER (PARTITION BY i.isrc) as group_size,
+    ROW_NUMBER() OVER (PARTITION BY i.isrc ORDER BY r.id) as group_rank
+FROM musicbrainz.isrc i
+INNER JOIN musicbrainz.recording r ON i.recording = r.id
 LEFT JOIN musicbrainz.artist_credit ac ON r.artist_credit = ac.id
-WHERE r.isrc IN (
+WHERE i.isrc IN (
     SELECT isrc 
-    FROM musicbrainz.recording 
-    WHERE isrc IS NOT NULL 
-      AND edits_pending = 0
-    GROUP BY isrc 
-    HAVING COUNT(*) > 1
+    FROM musicbrainz.isrc i2
+    INNER JOIN musicbrainz.recording r2 ON i2.recording = r2.id
+    WHERE i2.isrc IS NOT NULL 
+      AND r2.edits_pending = 0
+    GROUP BY i2.isrc 
+    HAVING COUNT(DISTINCT i2.recording) > 1
 )
 AND r.edits_pending = 0
-ORDER BY r.isrc, r.id
+ORDER BY i.isrc, r.id
 LIMIT 100;  -- Limite pour éviter les vues trop lourdes
 
 -- Commentaires

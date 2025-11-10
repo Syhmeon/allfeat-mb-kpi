@@ -1,5 +1,5 @@
 -- Création du schéma allfeat_kpi pour les KPI MusicBrainz
--- Usage: psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -f sql/init/00_schema.sql
+-- Usage: psql -h 127.0.0.1 -U musicbrainz -d musicbrainz_db -f sql/init/00_schema.sql
 
 -- Créer le schéma allfeat_kpi
 CREATE SCHEMA IF NOT EXISTS allfeat_kpi;
@@ -58,13 +58,13 @@ FROM musicbrainz.release;
 COMMENT ON VIEW allfeat_kpi.stats_overview IS 'Vue d''ensemble des statistiques générales par type d''entité';
 
 -- Créer une fonction utilitaire pour formater les pourcentages
-CREATE OR REPLACE FUNCTION allfeat_kpi.format_percentage(numerator BIGINT, denominator BIGINT)
-RETURNS DECIMAL(5,2) AS $$
+CREATE OR REPLACE FUNCTION allfeat_kpi.format_percentage(numerator NUMERIC, denominator NUMERIC)
+RETURNS NUMERIC AS $$
 BEGIN
-    IF denominator = 0 THEN
-        RETURN 0.00;
+    IF denominator = 0 OR denominator IS NULL THEN
+        RETURN NULL;
     END IF;
-    RETURN ROUND(numerator * 100.0 / denominator, 2);
+    RETURN ROUND((numerator * 100.0 / denominator)::NUMERIC, 2);
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 

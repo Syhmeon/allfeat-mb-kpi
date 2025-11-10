@@ -79,7 +79,7 @@ if (-not $SkipImport) {
             Write-ColorOutput "`n  ⏳ Import check #$checkCount (every 5 min)..." "Cyan"
             
             # Check if recording table has data
-            $recordingCount = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -t -c "SELECT COUNT(*) FROM musicbrainz.recording;" 2>&1
+            $recordingCount = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -t -c "SELECT COUNT(*) FROM musicbrainz.recording;" 2>&1
             
             if ($LASTEXITCODE -eq 0 -and $recordingCount -match '\d+') {
                 $count = [int]($recordingCount -replace '\D','')
@@ -105,7 +105,7 @@ Write-ColorOutput "`n🔍 Step 3/6: Verifying MusicBrainz database..." "Cyan"
 Get-MBStatus
 
 # Check if database has data
-$recordingCount = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -t -c "SELECT COUNT(*) FROM musicbrainz.recording;" 2>&1
+$recordingCount = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -t -c "SELECT COUNT(*) FROM musicbrainz.recording;" 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-ColorOutput "❌ Database not accessible or not ready." "Red"
     Write-ColorOutput "💡 Wait for import to complete and run this script again." "Cyan"

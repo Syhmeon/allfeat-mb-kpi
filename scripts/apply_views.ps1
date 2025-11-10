@@ -12,7 +12,7 @@
 param(
     [string]$DB_HOST = "127.0.0.1",
     [int]$DB_PORT = 5432,
-    [string]$DB_NAME = "musicbrainz",
+    [string]$DB_NAME = "musicbrainz_db",
     [string]$DB_USER = "musicbrainz",
     [string]$SQL_DIR = ".\sql"
 )

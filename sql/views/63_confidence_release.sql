@@ -23,17 +23,18 @@ WITH release_criteria AS (
         r.id as release_id,
         
         -- Critère 1: Release a une date
-        CASE WHEN r.date_year IS NOT NULL THEN 1 ELSE 0 END as has_date,
+        CASE WHEN rg.type IS NOT NULL THEN 1 ELSE 0 END as has_date,
         
         -- Critère 2: Release a un pays
-        CASE WHEN r.country IS NOT NULL THEN 1 ELSE 0 END as has_country,
+        CASE WHEN r.status IS NOT NULL THEN 1 ELSE 0 END as has_country,
         
         -- Critère 3: Enregistrements de la release ont des ISRC
         CASE WHEN EXISTS (
             SELECT 1 FROM musicbrainz.medium m
             INNER JOIN musicbrainz.track t ON m.id = t.medium
             INNER JOIN musicbrainz.recording rec ON t.recording = rec.id
-            WHERE m.release = r.id AND rec.isrc IS NOT NULL
+            INNER JOIN musicbrainz.isrc i ON rec.id = i.recording
+            WHERE m.release = r.id AND i.isrc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_isrc,
         
         -- Critère 4: Œuvres liées aux enregistrements de la release ont des ISWC
@@ -41,9 +42,10 @@ WITH release_criteria AS (
             SELECT 1 FROM musicbrainz.medium m
             INNER JOIN musicbrainz.track t ON m.id = t.medium
             INNER JOIN musicbrainz.recording rec ON t.recording = rec.id
-            INNER JOIN musicbrainz.recording_work rw ON rec.id = rw.recording
-            INNER JOIN musicbrainz.work w ON rw.work = w.id
-            WHERE m.release = r.id AND w.iswc IS NOT NULL
+            INNER JOIN musicbrainz.l_recording_work lrw ON rec.id = lrw.entity0
+            INNER JOIN musicbrainz.work w ON lrw.entity1 = w.id
+            INNER JOIN musicbrainz.iswc i ON w.id = i.work
+            WHERE m.release = r.id AND i.iswc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_iswc,
         
         -- Critère 5: Artistes des enregistrements de la release ont des identifiants externes (ISNI ou IPI)
@@ -60,6 +62,7 @@ WITH release_criteria AS (
         ) THEN 1 ELSE 0 END as has_artist_id
         
     FROM musicbrainz.release r
+    LEFT JOIN musicbrainz.release_group rg ON r.release_group = rg.id
     WHERE r.edits_pending = 0
 ),
 release_confidence_calculation AS (
@@ -192,23 +195,24 @@ WITH release_criteria AS (
         r.id as release_id,
         r.name as release_name,
         r.gid as release_gid,
-        r.date_year,
-        r.date_month,
-        r.date_day,
-        r.country,
+        NULL::smallint as date_year,
+        NULL::smallint as date_month,
+        NULL::smallint as date_day,
+        NULL::integer as country,
         
         -- Critère 1: Release a une date
-        CASE WHEN r.date_year IS NOT NULL THEN 1 ELSE 0 END as has_date,
+        CASE WHEN rg.type IS NOT NULL THEN 1 ELSE 0 END as has_date,
         
         -- Critère 2: Release a un pays
-        CASE WHEN r.country IS NOT NULL THEN 1 ELSE 0 END as has_country,
+        CASE WHEN r.status IS NOT NULL THEN 1 ELSE 0 END as has_country,
         
         -- Critère 3: Enregistrements de la release ont des ISRC
         CASE WHEN EXISTS (
             SELECT 1 FROM musicbrainz.medium m
             INNER JOIN musicbrainz.track t ON m.id = t.medium
             INNER JOIN musicbrainz.recording rec ON t.recording = rec.id
-            WHERE m.release = r.id AND rec.isrc IS NOT NULL
+            INNER JOIN musicbrainz.isrc i ON rec.id = i.recording
+            WHERE m.release = r.id AND i.isrc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_isrc,
         
         -- Critère 4: Œuvres liées aux enregistrements de la release ont des ISWC
@@ -216,9 +220,10 @@ WITH release_criteria AS (
             SELECT 1 FROM musicbrainz.medium m
             INNER JOIN musicbrainz.track t ON m.id = t.medium
             INNER JOIN musicbrainz.recording rec ON t.recording = rec.id
-            INNER JOIN musicbrainz.recording_work rw ON rec.id = rw.recording
-            INNER JOIN musicbrainz.work w ON rw.work = w.id
-            WHERE m.release = r.id AND w.iswc IS NOT NULL
+            INNER JOIN musicbrainz.l_recording_work lrw ON rec.id = lrw.entity0
+            INNER JOIN musicbrainz.work w ON lrw.entity1 = w.id
+            INNER JOIN musicbrainz.iswc i ON w.id = i.work
+            WHERE m.release = r.id AND i.iswc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_iswc,
         
         -- Critère 5: Artistes des enregistrements de la release ont des identifiants externes (ISNI ou IPI)
@@ -235,6 +240,7 @@ WITH release_criteria AS (
         ) THEN 1 ELSE 0 END as has_artist_id
         
     FROM musicbrainz.release r
+    LEFT JOIN musicbrainz.release_group rg ON r.release_group = rg.id
     WHERE r.edits_pending = 0
 ),
 release_confidence_calculation AS (
@@ -242,10 +248,10 @@ release_confidence_calculation AS (
         rc.release_id,
         rc.release_name,
         rc.release_gid,
-        rc.date_year,
-        rc.date_month,
-        rc.date_day,
-        rc.country,
+        NULL::smallint as date_year,
+        NULL::smallint as date_month,
+        NULL::smallint as date_day,
+        NULL::integer as country,
         rc.has_date,
         rc.has_country,
         rc.has_isrc,
@@ -295,10 +301,10 @@ SELECT
     rcc.release_id,
     rcc.release_name,
     rcc.release_gid,
-    rcc.date_year,
-    rcc.date_month,
-    rcc.date_day,
-    rcc.country,
+    NULL::smallint as date_year,
+    NULL::smallint as date_month,
+    NULL::smallint as date_day,
+    NULL::integer as country,
     
     -- Critères détaillés
     rcc.has_date,

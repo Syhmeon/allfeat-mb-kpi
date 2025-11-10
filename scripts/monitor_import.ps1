@@ -22,12 +22,82 @@ function Get-ContainerStatus {
 }
 
 function Get-PostgreSQLStatus {
-    $result = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -t -c "SELECT 1;" 2>$null
+    $result = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -t -c "SELECT 1;" 2>$null
     return ($LASTEXITCODE -eq 0)
+}
+
+function Get-SchemaTableCount {
+    if (-not (Get-PostgreSQLStatus)) {
+        return 0
+    }
+    
+    try {
+        $query = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'musicbrainz';"
+        $result = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -t -c $query 2>$null
+        
+        if (-not $result) {
+            return 0
+        }
+        
+        # Gérer les tableaux et les chaînes
+        $value = if ($result -is [array]) { 
+            ($result | Where-Object { $_ -ne $null } | Select-Object -First 1)
+        } else { 
+            $result 
+        }
+        
+        if (-not $value) {
+            return 0
+        }
+        
+        $trimmed = $value.ToString().Trim()
+        if ($trimmed -match '^\d+$') {
+            return [int]$trimmed
+        }
+    } catch {
+        # En cas d'erreur, retourner 0
+        return 0
+    }
+    
+    return 0
+}
+
+function Get-DatabaseSize {
+    if (-not (Get-PostgreSQLStatus)) {
+        return "N/A"
+    }
+    
+    $query = "SELECT pg_size_pretty(pg_database_size('musicbrainz_db'));"
+    $result = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -t -c $query 2>$null
+    if ($result) {
+        $value = if ($result -is [array]) { $result[0] } else { $result }
+        return $value.ToString().Trim()
+    }
+    return "N/A"
 }
 
 function Get-TableCounts {
     if (-not (Get-PostgreSQLStatus)) {
+        return $null
+    }
+    
+    # Vérifier d'abord si les tables existent
+    $checkQuery = @"
+SELECT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'musicbrainz' 
+    AND table_name IN ('recording', 'artist', 'work', 'release')
+);
+"@
+    
+    $tablesExist = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -t -c $checkQuery 2>$null
+    if ($tablesExist) {
+        $value = if ($tablesExist -is [array]) { $tablesExist[0] } else { $tablesExist }
+        $trimmed = $value.ToString().Trim()
+        if ($trimmed -ne "t") {
+            return $null
+        }
+    } else {
         return $null
     }
     
@@ -53,8 +123,21 @@ SELECT
 FROM musicbrainz.release;
 "@
     
-    $result = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -t -c $query 2>$null
+    $result = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -t -c $query 2>$null
     return $result
+}
+
+function Get-ImportLogs {
+    # Récupérer les dernières lignes des logs du conteneur d'import
+    $importContainers = docker ps -a --filter "ancestor=metabrainz/musicbrainz-docker-musicbrainz" --format "{{.ID}}" 2>$null
+    if ($importContainers) {
+        $latestContainer = ($importContainers -split "`n" | Select-Object -First 1).Trim()
+        if ($latestContainer) {
+            $logs = docker logs $latestContainer --tail 5 2>&1
+            return $logs
+        }
+    }
+    return $null
 }
 
 function Format-Number {
@@ -109,8 +192,20 @@ while (-not $importComplete) {
     if ($pgReady) {
         Write-ColorOutput "✅ Accessible" "Green"
         
+        # Schema progress
+        $schemaTableCount = Get-SchemaTableCount
+        $dbSize = Get-DatabaseSize
+        Write-Host "Tables créées: " -NoNewline
+        if ($schemaTableCount -gt 0) {
+            Write-ColorOutput "$schemaTableCount / ~375" "Yellow"
+        } else {
+            Write-ColorOutput "0 / ~375 (⏳ En attente...)" "Gray"
+        }
+        Write-Host "Taille DB:      " -NoNewline
+        Write-ColorOutput $dbSize "Cyan"
+        
         # Get table counts
-        Write-ColorOutput "`nTable Counts:" "Yellow"
+        Write-ColorOutput "`nDonnées importées:" "Yellow"
         $tableCounts = Get-TableCounts
         
         if ($tableCounts) {
@@ -188,11 +283,31 @@ while (-not $importComplete) {
                 
                 $importComplete = $true
             }
+        } else {
+            Write-ColorOutput "  ⏳ Tables principales pas encore créées..." "Gray"
+            Write-ColorOutput "  (L'import est en cours de création des schémas/tables)" "Gray"
+        }
+        
+        # Afficher les derniers logs d'import
+        $importLogs = Get-ImportLogs
+        if ($importLogs) {
+            Write-ColorOutput "`nDerniers logs d'import:" "Gray"
+            $importLogs | ForEach-Object {
+                if ($_ -match "skipping|COPY|ERROR|FATAL") {
+                    if ($_ -match "ERROR|FATAL") {
+                        Write-ColorOutput "  $_" "Red"
+                    } elseif ($_ -match "COPY") {
+                        Write-ColorOutput "  $_" "Green"
+                    } else {
+                        Write-ColorOutput "  $_" "Gray"
+                    }
+                }
+            }
         }
     } else {
         Write-ColorOutput "⏳ Not ready (téléchargement/import en cours)" "Yellow"
         Write-ColorOutput "`nTéléchargement en cours..." "Gray"
-        Write-ColorOutput "Pour voir les logs détaillés: docker logs -f musicbrainz-db" "Gray"
+        Write-ColorOutput "Pour voir les logs détaillés: docker compose logs -f musicbrainz" "Gray"
     }
     
     if (-not $importComplete) {

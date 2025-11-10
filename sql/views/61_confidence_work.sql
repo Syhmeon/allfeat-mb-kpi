@@ -23,22 +23,23 @@ WITH work_criteria AS (
         w.id as work_id,
         
         -- Critère 1: Œuvre a un ISWC
-        CASE WHEN w.iswc IS NOT NULL THEN 1 ELSE 0 END as has_iswc,
+        CASE WHEN EXISTS (SELECT 1 FROM musicbrainz.iswc i WHERE i.work = w.id AND i.iswc IS NOT NULL) THEN 1 ELSE 0 END as has_iswc,
         
         -- Critère 2: Enregistrements liés à l'œuvre ont des ISRC
         CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.recording_work rw
-            INNER JOIN musicbrainz.recording r ON rw.recording = r.id
-            WHERE rw.work = w.id AND r.isrc IS NOT NULL
+            SELECT 1 FROM musicbrainz.l_recording_work lrw
+            INNER JOIN musicbrainz.recording r ON lrw.entity0 = r.id
+            INNER JOIN musicbrainz.isrc i ON r.id = i.recording
+            WHERE lrw.entity1 = w.id AND i.isrc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_isrc,
         
         -- Critère 3: Artistes des enregistrements liés ont des identifiants externes (ISNI ou IPI)
         CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.recording_work rw
-            INNER JOIN musicbrainz.recording r ON rw.recording = r.id
+            SELECT 1 FROM musicbrainz.l_recording_work lrw
+            INNER JOIN musicbrainz.recording r ON lrw.entity0 = r.id
             INNER JOIN musicbrainz.artist_credit ac ON r.artist_credit = ac.id
             INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            WHERE rw.work = w.id AND (
+            WHERE lrw.entity1 = w.id AND (
                 EXISTS (SELECT 1 FROM musicbrainz.artist_isni WHERE artist = acn.artist) OR
                 EXISTS (SELECT 1 FROM musicbrainz.artist_ipi WHERE artist = acn.artist)
             )
@@ -46,12 +47,12 @@ WITH work_criteria AS (
         
         -- Critère 4: Enregistrements liés à l'œuvre sont présents sur des releases
         CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.recording_work rw
-            INNER JOIN musicbrainz.recording r ON rw.recording = r.id
+            SELECT 1 FROM musicbrainz.l_recording_work lrw
+            INNER JOIN musicbrainz.recording r ON lrw.entity0 = r.id
             INNER JOIN musicbrainz.track t ON r.id = t.recording
             INNER JOIN musicbrainz.medium m ON t.medium = m.id
             INNER JOIN musicbrainz.release rel ON m.release = rel.id
-            WHERE rw.work = w.id
+            WHERE lrw.entity1 = w.id
         ) THEN 1 ELSE 0 END as on_release
         
     FROM musicbrainz.work w
@@ -184,26 +185,27 @@ WITH work_criteria AS (
         w.name as work_name,
         w.gid as work_gid,
         w.type as work_type,
-        w.language_code,
-        w.iswc,
+        NULL::integer as language_code,
+        (SELECT i.iswc FROM musicbrainz.iswc i WHERE i.work = w.id LIMIT 1) as iswc,
         
         -- Critère 1: Œuvre a un ISWC
-        CASE WHEN w.iswc IS NOT NULL THEN 1 ELSE 0 END as has_iswc,
+        CASE WHEN EXISTS (SELECT 1 FROM musicbrainz.iswc i WHERE i.work = w.id AND i.iswc IS NOT NULL) THEN 1 ELSE 0 END as has_iswc,
         
         -- Critère 2: Enregistrements liés à l'œuvre ont des ISRC
         CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.recording_work rw
-            INNER JOIN musicbrainz.recording r ON rw.recording = r.id
-            WHERE rw.work = w.id AND r.isrc IS NOT NULL
+            SELECT 1 FROM musicbrainz.l_recording_work lrw
+            INNER JOIN musicbrainz.recording r ON lrw.entity0 = r.id
+            INNER JOIN musicbrainz.isrc i ON r.id = i.recording
+            WHERE lrw.entity1 = w.id AND i.isrc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_isrc,
         
         -- Critère 3: Artistes des enregistrements liés ont des identifiants externes (ISNI ou IPI)
         CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.recording_work rw
-            INNER JOIN musicbrainz.recording r ON rw.recording = r.id
+            SELECT 1 FROM musicbrainz.l_recording_work lrw
+            INNER JOIN musicbrainz.recording r ON lrw.entity0 = r.id
             INNER JOIN musicbrainz.artist_credit ac ON r.artist_credit = ac.id
             INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            WHERE rw.work = w.id AND (
+            WHERE lrw.entity1 = w.id AND (
                 EXISTS (SELECT 1 FROM musicbrainz.artist_isni WHERE artist = acn.artist) OR
                 EXISTS (SELECT 1 FROM musicbrainz.artist_ipi WHERE artist = acn.artist)
             )
@@ -211,12 +213,12 @@ WITH work_criteria AS (
         
         -- Critère 4: Enregistrements liés à l'œuvre sont présents sur des releases
         CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.recording_work rw
-            INNER JOIN musicbrainz.recording r ON rw.recording = r.id
+            SELECT 1 FROM musicbrainz.l_recording_work lrw
+            INNER JOIN musicbrainz.recording r ON lrw.entity0 = r.id
             INNER JOIN musicbrainz.track t ON r.id = t.recording
             INNER JOIN musicbrainz.medium m ON t.medium = m.id
             INNER JOIN musicbrainz.release rel ON m.release = rel.id
-            WHERE rw.work = w.id
+            WHERE lrw.entity1 = w.id
         ) THEN 1 ELSE 0 END as on_release
         
     FROM musicbrainz.work w
@@ -228,7 +230,7 @@ work_confidence_calculation AS (
         wc.work_name,
         wc.work_gid,
         wc.work_type,
-        wc.language_code,
+        NULL::integer as language_code,
         wc.iswc,
         wc.has_iswc,
         wc.has_isrc,
@@ -279,7 +281,7 @@ SELECT
     wcc.work_name,
     wcc.work_gid,
     wcc.work_type,
-    wcc.language_code,
+    NULL::integer as language_code,
     wcc.iswc,
     
     -- Critères détaillés

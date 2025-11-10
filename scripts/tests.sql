@@ -1,5 +1,5 @@
 -- Tests unifiés des vues KPI Allfeat (Phase 1+2)
--- Usage: psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -f scripts/tests.sql
+-- Usage: psql -h 127.0.0.1 -U musicbrainz -d musicbrainz_db -f scripts/tests.sql
 
 \echo '🧪 Tests unifiés des vues KPI Allfeat (Phase 1+2)'
 \echo '==============================================='

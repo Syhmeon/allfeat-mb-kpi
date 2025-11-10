@@ -34,7 +34,8 @@ WITH artist_criteria AS (
             SELECT 1 FROM musicbrainz.recording r
             INNER JOIN musicbrainz.artist_credit ac ON r.artist_credit = ac.id
             INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            WHERE acn.artist = a.id AND r.isrc IS NOT NULL
+            INNER JOIN musicbrainz.isrc i ON r.id = i.recording
+            WHERE acn.artist = a.id AND i.isrc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_isrc,
         
         -- Critère 3: Œuvres liées aux enregistrements de l'artiste ont des ISWC
@@ -42,9 +43,10 @@ WITH artist_criteria AS (
             SELECT 1 FROM musicbrainz.recording r
             INNER JOIN musicbrainz.artist_credit ac ON r.artist_credit = ac.id
             INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            INNER JOIN musicbrainz.recording_work rw ON r.id = rw.recording
-            INNER JOIN musicbrainz.work w ON rw.work = w.id
-            WHERE acn.artist = a.id AND w.iswc IS NOT NULL
+            INNER JOIN musicbrainz.l_recording_work lrw ON r.id = lrw.entity0
+            INNER JOIN musicbrainz.work w ON lrw.entity1 = w.id
+            INNER JOIN musicbrainz.iswc i ON w.id = i.work
+            WHERE acn.artist = a.id AND i.iswc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_iswc,
         
         -- Critère 4: Enregistrements de l'artiste sont présents sur des releases
@@ -189,8 +191,8 @@ WITH artist_criteria AS (
         a.name as artist_name,
         a.gid as artist_gid,
         a.sort_name,
-        a.begin_date,
-        a.end_date,
+        a.begin_date_year,
+        a.end_date_year,
         a.area,
         
         -- Critère 1: Artiste a des identifiants externes (ISNI ou IPI)
@@ -205,7 +207,8 @@ WITH artist_criteria AS (
             SELECT 1 FROM musicbrainz.recording r
             INNER JOIN musicbrainz.artist_credit ac ON r.artist_credit = ac.id
             INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            WHERE acn.artist = a.id AND r.isrc IS NOT NULL
+            INNER JOIN musicbrainz.isrc i ON r.id = i.recording
+            WHERE acn.artist = a.id AND i.isrc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_isrc,
         
         -- Critère 3: Œuvres liées aux enregistrements de l'artiste ont des ISWC
@@ -213,9 +216,10 @@ WITH artist_criteria AS (
             SELECT 1 FROM musicbrainz.recording r
             INNER JOIN musicbrainz.artist_credit ac ON r.artist_credit = ac.id
             INNER JOIN musicbrainz.artist_credit_name acn ON ac.id = acn.artist_credit
-            INNER JOIN musicbrainz.recording_work rw ON r.id = rw.recording
-            INNER JOIN musicbrainz.work w ON rw.work = w.id
-            WHERE acn.artist = a.id AND w.iswc IS NOT NULL
+            INNER JOIN musicbrainz.l_recording_work lrw ON r.id = lrw.entity0
+            INNER JOIN musicbrainz.work w ON lrw.entity1 = w.id
+            INNER JOIN musicbrainz.iswc i ON w.id = i.work
+            WHERE acn.artist = a.id AND i.iswc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_iswc,
         
         -- Critère 4: Enregistrements de l'artiste sont présents sur des releases
@@ -239,8 +243,8 @@ artist_confidence_calculation AS (
         ac.artist_name,
         ac.artist_gid,
         ac.sort_name,
-        ac.begin_date,
-        ac.end_date,
+        NULL::smallint as begin_date,
+        NULL::smallint as end_date,
         ac.area,
         ac.has_artist_id,
         ac.has_isrc,
@@ -291,8 +295,8 @@ SELECT
     acc.artist_name,
     acc.artist_gid,
     acc.sort_name,
-    acc.begin_date,
-    acc.end_date,
+    NULL::smallint as begin_date,
+    NULL::smallint as end_date,
     acc.area,
     
     -- Critères détaillés

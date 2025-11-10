@@ -47,7 +47,7 @@ if ($parts.Count -ge 3) {
 # 3. Verifier l'acces PostgreSQL
 Write-ColorOutput "`nEtape 3/5: Test de connexion PostgreSQL..." "Yellow"
 try {
-    $pgTest = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "SELECT version();" 2>&1
+    $pgTest = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT version();" 2>&1
     if ($LASTEXITCODE -eq 0) {
         $pgVersion = ($pgTest | Select-String -Pattern "PostgreSQL").Line
         Write-ColorOutput "OK: PostgreSQL est accessible" "Green"
@@ -96,7 +96,7 @@ FROM musicbrainz.release;
 '@
 
 try {
-    $results = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -t -A -F "|" -c $query 2>&1
+    $results = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -t -A -F "|" -c $query 2>&1
     
     if ($LASTEXITCODE -eq 0) {
         $metrics = @{}

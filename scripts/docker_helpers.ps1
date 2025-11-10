@@ -51,7 +51,7 @@ function Get-MBStatus {
     
     # Database connection test
     Write-ColorOutput "`n🔌 Database Connection:" "Yellow"
-    $dbTest = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "SELECT version();" 2>&1
+    $dbTest = docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT version();" 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-ColorOutput "✅ PostgreSQL is accessible" "Green"
     } else {
@@ -61,7 +61,7 @@ function Get-MBStatus {
     
     # Table counts
     Write-ColorOutput "`n📊 Database Statistics:" "Yellow"
-    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c @"
+    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c @"
 SELECT 
     schemaname,
     COUNT(*) as table_count
@@ -73,7 +73,7 @@ ORDER BY schemaname;
     
     # Sample table row counts
     Write-ColorOutput "`n📈 Sample Table Counts:" "Yellow"
-    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c @"
+    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c @"
 SELECT 
     'recording' as table_name,
     COUNT(*) as row_count
@@ -108,7 +108,7 @@ function Get-MBImportProgress {
     Get-MBImportProgress
     #>
     Write-ColorOutput "📊 MusicBrainz Import Progress" "Cyan"
-    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c @"
+    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c @"
 SELECT 
     schemaname,
     tablename,
@@ -155,7 +155,7 @@ function Enter-MBShell {
     Enter-MBShell
     #>
     Write-ColorOutput "🐚 Entering PostgreSQL shell (type \q to exit)..." "Cyan"
-    docker exec -it musicbrainz-db psql -U musicbrainz -d musicbrainz
+    docker exec -it musicbrainz-db psql -U musicbrainz -d musicbrainz_db
 }
 
 function Invoke-MBQuery {
@@ -177,7 +177,7 @@ function Invoke-MBQuery {
         [string]$Query
     )
     
-    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c $Query
+    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c $Query
 }
 
 # ============================================================================
@@ -198,7 +198,7 @@ function Initialize-AllfeatKPI {
     Write-ColorOutput "🔧 Initializing Allfeat KPI schema..." "Cyan"
     
     if (Test-Path "sql\init\00_schema.sql") {
-        Get-Content "sql\init\00_schema.sql" | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
+        Get-Content "sql\init\00_schema.sql" | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db
         if ($LASTEXITCODE -eq 0) {
             Write-ColorOutput "✅ Schema allfeat_kpi created successfully" "Green"
         } else {
@@ -223,7 +223,7 @@ function Apply-KPIViews {
     Write-ColorOutput "📊 Applying KPI views..." "Cyan"
     
     if (Test-Path "scripts\apply_views.ps1") {
-        & ".\scripts\apply_views.ps1" -DB_HOST "127.0.0.1" -DB_PORT 5432 -DB_NAME "musicbrainz" -DB_USER "musicbrainz"
+        & ".\scripts\apply_views.ps1" -DB_HOST "127.0.0.1" -DB_PORT 5432 -DB_NAME "musicbrainz_db" -DB_USER "musicbrainz"
     } else {
         Write-ColorOutput "❌ File scripts/apply_views.ps1 not found" "Red"
     }
@@ -243,7 +243,7 @@ function Test-KPIViews {
     Write-ColorOutput "🧪 Running KPI tests..." "Cyan"
     
     if (Test-Path "scripts\tests.sql") {
-        Get-Content "scripts\tests.sql" | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
+        Get-Content "scripts\tests.sql" | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db
     } else {
         Write-ColorOutput "❌ File scripts/tests.sql not found" "Red"
     }

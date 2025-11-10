@@ -8,15 +8,18 @@ WITH artist_id_stats AS (
         COUNT(*) as total_artists,
         COUNT(DISTINCT a.id) FILTER (WHERE ai.artist IS NOT NULL) as artists_with_ipi,
         COUNT(DISTINCT a.id) FILTER (WHERE ai2.artist IS NOT NULL) as artists_with_isni,
-        COUNT(DISTINCT a.id) FILTER (WHERE ai3.artist IS NOT NULL) as artists_with_viaf,
-        COUNT(DISTINCT a.id) FILTER (WHERE ai4.artist IS NOT NULL) as artists_with_wikidata,
-        COUNT(DISTINCT a.id) FILTER (WHERE ai5.artist IS NOT NULL) as artists_with_imdb
+        COUNT(DISTINCT a.id) FILTER (WHERE u3.id IS NOT NULL) as artists_with_viaf,
+        COUNT(DISTINCT a.id) FILTER (WHERE u4.id IS NOT NULL) as artists_with_wikidata,
+        COUNT(DISTINCT a.id) FILTER (WHERE u5.id IS NOT NULL) as artists_with_imdb
     FROM musicbrainz.artist a
     LEFT JOIN musicbrainz.artist_ipi ai ON a.id = ai.artist
     LEFT JOIN musicbrainz.artist_isni ai2 ON a.id = ai2.artist
-    LEFT JOIN musicbrainz.artist_url ai3 ON a.id = ai3.artist AND ai3.url LIKE '%viaf%'
-    LEFT JOIN musicbrainz.artist_url ai4 ON a.id = ai4.artist AND ai4.url LIKE '%wikidata%'
-    LEFT JOIN musicbrainz.artist_url ai5 ON a.id = ai5.artist AND ai5.url LIKE '%imdb%'
+    LEFT JOIN musicbrainz.l_artist_url lau3 ON a.id = lau3.entity0
+    LEFT JOIN musicbrainz.url u3 ON lau3.entity1 = u3.id AND u3.url LIKE '%viaf%'
+    LEFT JOIN musicbrainz.l_artist_url lau4 ON a.id = lau4.entity0
+    LEFT JOIN musicbrainz.url u4 ON lau4.entity1 = u4.id AND u4.url LIKE '%wikidata%'
+    LEFT JOIN musicbrainz.l_artist_url lau5 ON a.id = lau5.entity0
+    LEFT JOIN musicbrainz.url u5 ON lau5.entity1 = u5.id AND u5.url LIKE '%imdb%'
     WHERE a.type = 1  -- Person only
       AND a.edits_pending = 0
 ),
@@ -26,8 +29,8 @@ artist_missing_ids AS (
         a.name,
         a.gid,
         a.sort_name,
-        a.begin_date,
-        a.end_date,
+        a.begin_date_year,
+        a.end_date_year,
         a.area,
         a.type,
         CASE 
@@ -39,23 +42,26 @@ artist_missing_ids AS (
             ELSE 'Has ISNI'
         END as isni_status,
         CASE 
-            WHEN ai3.artist IS NULL THEN 'Missing VIAF'
+            WHEN u3.id IS NULL THEN 'Missing VIAF'
             ELSE 'Has VIAF'
         END as viaf_status,
         CASE 
-            WHEN ai4.artist IS NULL THEN 'Missing Wikidata'
+            WHEN u4.id IS NULL THEN 'Missing Wikidata'
             ELSE 'Has Wikidata'
         END as wikidata_status,
         CASE 
-            WHEN ai5.artist IS NULL THEN 'Missing IMDB'
+            WHEN u5.id IS NULL THEN 'Missing IMDB'
             ELSE 'Has IMDB'
         END as imdb_status
     FROM musicbrainz.artist a
     LEFT JOIN musicbrainz.artist_ipi ai ON a.id = ai.artist
     LEFT JOIN musicbrainz.artist_isni ai2 ON a.id = ai2.artist
-    LEFT JOIN musicbrainz.artist_url ai3 ON a.id = ai3.artist AND ai3.url LIKE '%viaf%'
-    LEFT JOIN musicbrainz.artist_url ai4 ON a.id = ai4.artist AND ai4.url LIKE '%wikidata%'
-    LEFT JOIN musicbrainz.artist_url ai5 ON a.id = ai5.artist AND ai5.url LIKE '%imdb%'
+    LEFT JOIN musicbrainz.l_artist_url lau3 ON a.id = lau3.entity0
+    LEFT JOIN musicbrainz.url u3 ON lau3.entity1 = u3.id AND u3.url LIKE '%viaf%'
+    LEFT JOIN musicbrainz.l_artist_url lau4 ON a.id = lau4.entity0
+    LEFT JOIN musicbrainz.url u4 ON lau4.entity1 = u4.id AND u4.url LIKE '%wikidata%'
+    LEFT JOIN musicbrainz.l_artist_url lau5 ON a.id = lau5.entity0
+    LEFT JOIN musicbrainz.url u5 ON lau5.entity1 = u5.id AND u5.url LIKE '%imdb%'
     WHERE a.type = 1  -- Person only
       AND a.edits_pending = 0
 )
@@ -100,8 +106,8 @@ SELECT
     a.name as artist_name,
     a.gid as artist_gid,
     a.sort_name,
-    a.begin_date,
-    a.end_date,
+    a.begin_date_year,
+    a.end_date_year,
     a.area,
     CASE 
         WHEN ai.artist IS NULL THEN 'Missing IPI'
@@ -112,39 +118,42 @@ SELECT
         ELSE 'Has ISNI'
     END as isni_status,
     CASE 
-        WHEN ai3.artist IS NULL THEN 'Missing VIAF'
+        WHEN u3.id IS NULL THEN 'Missing VIAF'
         ELSE 'Has VIAF'
     END as viaf_status,
     CASE 
-        WHEN ai4.artist IS NULL THEN 'Missing Wikidata'
+        WHEN u4.id IS NULL THEN 'Missing Wikidata'
         ELSE 'Has Wikidata'
     END as wikidata_status,
     CASE 
-        WHEN ai5.artist IS NULL THEN 'Missing IMDB'
+        WHEN u5.id IS NULL THEN 'Missing IMDB'
         ELSE 'Has IMDB'
     END as imdb_status,
     -- Score de complétude pour cet artiste
     (
         CASE WHEN ai.artist IS NOT NULL THEN 1 ELSE 0 END +
         CASE WHEN ai2.artist IS NOT NULL THEN 1 ELSE 0 END +
-        CASE WHEN ai3.artist IS NOT NULL THEN 1 ELSE 0 END +
-        CASE WHEN ai4.artist IS NOT NULL THEN 1 ELSE 0 END +
-        CASE WHEN ai5.artist IS NOT NULL THEN 1 ELSE 0 END
+        CASE WHEN u3.id IS NOT NULL THEN 1 ELSE 0 END +
+        CASE WHEN u4.id IS NOT NULL THEN 1 ELSE 0 END +
+        CASE WHEN u5.id IS NOT NULL THEN 1 ELSE 0 END
     ) as id_completeness_score
 FROM musicbrainz.artist a
 LEFT JOIN musicbrainz.artist_ipi ai ON a.id = ai.artist
 LEFT JOIN musicbrainz.artist_isni ai2 ON a.id = ai2.artist
-LEFT JOIN musicbrainz.artist_url ai3 ON a.id = ai3.artist AND ai3.url LIKE '%viaf%'
-LEFT JOIN musicbrainz.artist_url ai4 ON a.id = ai4.artist AND ai4.url LIKE '%wikidata%'
-LEFT JOIN musicbrainz.artist_url ai5 ON a.id = ai5.artist AND ai5.url LIKE '%imdb%'
+LEFT JOIN musicbrainz.l_artist_url lau3 ON a.id = lau3.entity0
+LEFT JOIN musicbrainz.url u3 ON lau3.entity1 = u3.id AND u3.url LIKE '%viaf%'
+LEFT JOIN musicbrainz.l_artist_url lau4 ON a.id = lau4.entity0
+LEFT JOIN musicbrainz.url u4 ON lau4.entity1 = u4.id AND u4.url LIKE '%wikidata%'
+LEFT JOIN musicbrainz.l_artist_url lau5 ON a.id = lau5.entity0
+LEFT JOIN musicbrainz.url u5 ON lau5.entity1 = u5.id AND u5.url LIKE '%imdb%'
 WHERE a.type = 1  -- Person only
   AND a.edits_pending = 0
   AND (
     ai.artist IS NULL OR 
     ai2.artist IS NULL OR 
-    ai3.artist IS NULL OR 
-    ai4.artist IS NULL OR 
-    ai5.artist IS NULL
+    u3.id IS NULL OR 
+    u4.id IS NULL OR 
+    u5.id IS NULL
   )
 ORDER BY id_completeness_score ASC, RANDOM()
 LIMIT 50;

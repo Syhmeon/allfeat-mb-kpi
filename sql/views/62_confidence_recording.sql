@@ -23,13 +23,14 @@ WITH recording_criteria AS (
         r.id as recording_id,
         
         -- Critère 1: Enregistrement a un ISRC
-        CASE WHEN r.isrc IS NOT NULL THEN 1 ELSE 0 END as has_isrc,
+        CASE WHEN EXISTS (SELECT 1 FROM musicbrainz.isrc i WHERE i.recording = r.id AND i.isrc IS NOT NULL) THEN 1 ELSE 0 END as has_isrc,
         
         -- Critère 2: Œuvre liée à l'enregistrement a un ISWC
         CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.recording_work rw
-            INNER JOIN musicbrainz.work w ON rw.work = w.id
-            WHERE rw.recording = r.id AND w.iswc IS NOT NULL
+            SELECT 1 FROM musicbrainz.l_recording_work lrw
+            INNER JOIN musicbrainz.work w ON lrw.entity1 = w.id
+            INNER JOIN musicbrainz.iswc i ON w.id = i.work
+            WHERE lrw.entity0 = r.id AND i.iswc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_iswc,
         
         -- Critère 3: Artiste de l'enregistrement a des identifiants externes (ISNI ou IPI)
@@ -180,16 +181,17 @@ WITH recording_criteria AS (
         r.name as recording_name,
         r.gid as recording_gid,
         r.length,
-        r.isrc,
+        (SELECT i.isrc FROM musicbrainz.isrc i WHERE i.recording = r.id LIMIT 1) as isrc,
         
         -- Critère 1: Enregistrement a un ISRC
-        CASE WHEN r.isrc IS NOT NULL THEN 1 ELSE 0 END as has_isrc,
+        CASE WHEN EXISTS (SELECT 1 FROM musicbrainz.isrc i WHERE i.recording = r.id AND i.isrc IS NOT NULL) THEN 1 ELSE 0 END as has_isrc,
         
         -- Critère 2: Œuvre liée à l'enregistrement a un ISWC
         CASE WHEN EXISTS (
-            SELECT 1 FROM musicbrainz.recording_work rw
-            INNER JOIN musicbrainz.work w ON rw.work = w.id
-            WHERE rw.recording = r.id AND w.iswc IS NOT NULL
+            SELECT 1 FROM musicbrainz.l_recording_work lrw
+            INNER JOIN musicbrainz.work w ON lrw.entity1 = w.id
+            INNER JOIN musicbrainz.iswc i ON w.id = i.work
+            WHERE lrw.entity0 = r.id AND i.iswc IS NOT NULL
         ) THEN 1 ELSE 0 END as has_iswc,
         
         -- Critère 3: Artiste de l'enregistrement a des identifiants externes (ISNI ou IPI)

@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+
+# Context
+
+Database: musicbrainz_db (PostgreSQL)
+Schema source: musicbrainz (read-only)
+Schema target: allfeat_kpi (analytics)
+Host: 127.0.0.1:5432
+User: musicbrainz / Password: musicbrainz
+
+Rules:
+- Never delete, drop or truncate any table.
+- No destructive DDL or schema reset.
+- Always create objects under schema allfeat_kpi.
+- musicbrainz schema is immutable reference data.
+- KPI views use ~12 core tables (recording, work, artist, release, medium, track, etc.).
+- Operations are idempotent (CREATE IF NOT EXISTS / OR REPLACE only).
+

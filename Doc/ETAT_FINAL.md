@@ -1,6 +1,6 @@
 # ✅ État Final - Remise à Zéro Complète
 
-**Date:** 3 novembre 2025  
+**Date:** 10 novembre 2025  
 **Action:** Remise à plat complète - Volume PostgreSQL supprimé et recréé
 
 ---
@@ -17,7 +17,7 @@
 - ✅ Commande : `docker compose run --rm musicbrainz createdb.sh`
 - ✅ Fichiers déjà téléchargés : 7 fichiers `.tar.bz2` (6.2 GB) présents
 - ✅ Pas de re-téléchargement nécessaire
-- ✅ Logs capturés dans : `import_final.log`
+- ✅ Logs disponibles via : `docker compose logs musicbrainz`
 
 ---
 
@@ -62,15 +62,15 @@
 # Logs du conteneur d'import
 docker compose logs -f musicbrainz
 
-# Ou suivre le fichier de log
-Get-Content import_final.log -Wait -Tail 50
+# Ou utiliser le script de monitoring
+.\scripts\monitor_import.ps1
 ```
 
 ### Vérifier la progression
 
 ```powershell
 # Compter les tables créées
-docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "
 SELECT COUNT(*) 
 FROM information_schema.tables 
 WHERE table_schema = 'musicbrainz';
@@ -78,7 +78,7 @@ WHERE table_schema = 'musicbrainz';
 # Attendu après import : ~375 tables
 
 # Vérifier les données importées
-docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "
 SELECT 
     schemaname,
     tablename,
@@ -94,8 +94,8 @@ LIMIT 10;
 ### Taille de la base
 
 ```powershell
-docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
-SELECT pg_size_pretty(pg_database_size('musicbrainz')) as database_size;
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "
+SELECT pg_size_pretty(pg_database_size('musicbrainz_db')) as database_size;
 "
 # Attendu après import : ~80 GB
 ```
@@ -108,7 +108,7 @@ Une fois l'import terminé, vérifier :
 
 1. **Base existe et est accessible**
    ```powershell
-   docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "SELECT 1;"
+   docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT 1;"
    ```
 
 2. **Tables créées** : ~375 tables dans le schéma `musicbrainz`
@@ -127,7 +127,7 @@ Une fois l'import terminé, vérifier :
 ### 1. Vérifier que l'import est terminé
 
 ```powershell
-docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "
 SELECT COUNT(*) as table_count 
 FROM information_schema.tables 
 WHERE table_schema = 'musicbrainz';
@@ -138,7 +138,7 @@ WHERE table_schema = 'musicbrainz';
 ### 2. Créer le schéma Allfeat KPI
 
 ```powershell
-Get-Content sql\init\00_schema.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
+Get-Content sql\init\00_schema.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db
 ```
 
 ### 3. Appliquer les 10 vues KPI
@@ -147,14 +147,14 @@ Get-Content sql\init\00_schema.sql | docker exec -i musicbrainz-db psql -U music
 $views = Get-ChildItem sql\views\*.sql | Sort-Object Name
 foreach ($v in $views) {
     Write-Host "✅ Applique $($v.Name)..."
-    Get-Content $v.FullName | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
+    Get-Content $v.FullName | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db
 }
 ```
 
 ### 4. Tester
 
 ```powershell
-Get-Content scripts\tests.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz
+Get-Content scripts\tests.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db
 ```
 
 ---

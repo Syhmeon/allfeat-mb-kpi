@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+# Workflow
+
+1. Import MusicBrainz dump into container `musicbrainz-db`.
+2. Verify data presence (recording > 0).
+3. Run `sql/init/00_schema.sql` to create schema `allfeat_kpi`.
+4. Run `scripts/apply_views.ps1` to apply all KPI views (10+ views).
+5. Run `scripts/tests.sql` for full validation (schema, views, performance).
+6. Connect Excel/ODBC to `allfeat_kpi` for Power Query analysis.
+7. Never modify or delete data in schema `musicbrainz`.

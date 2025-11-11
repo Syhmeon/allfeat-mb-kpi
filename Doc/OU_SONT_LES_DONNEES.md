@@ -34,7 +34,7 @@ Une fois Docker Desktop redémarré et les conteneurs lancés :
 
 ```powershell
 # Se connecter à PostgreSQL
-docker exec -it musicbrainz-db psql -U musicbrainz -d musicbrainz
+docker exec -it musicbrainz-db psql -U musicbrainz -d musicbrainz_db
 
 # Voir les tables
 \dt musicbrainz.*
@@ -66,7 +66,7 @@ Une fois l'import terminé et les vues KPI créées :
 DSN: MB_ODBC
 Host: localhost
 Port: 5432
-Database: musicbrainz
+Database: musicbrainz_db
 User: musicbrainz
 Password: musicbrainz
 Schema: allfeat_kpi
@@ -79,8 +79,8 @@ Schema: allfeat_kpi
 ### Taille de la base PostgreSQL
 
 ```powershell
-docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz -c "
-SELECT pg_size_pretty(pg_database_size('musicbrainz')) as database_size;
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "
+SELECT pg_size_pretty(pg_database_size('musicbrainz_db')) as database_size;
 "
 ```
 

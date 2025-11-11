@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+# Architecture
+
+Stack: Docker (musicbrainz/musicbrainz-server:v30)
+Mode: DB_ONLY=1 (web server disabled)
+Main container: musicbrainz-db (PostgreSQL)
+Helper container: musicbrainzkpi (scripts + KPI generation)
+Volume: /var/lib/postgresql/data (persistent)
+Dump location: /dbdump (mounted in musicbrainz-db)
+Resources: ≥ 8 GB RAM, ≥ 80 GB disk

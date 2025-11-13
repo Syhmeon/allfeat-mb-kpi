@@ -6,6 +6,8 @@ volumes:
     driver: local
   dbdump:
     driver: local
+  logs:
+    driver: local
 
 services:
   db:
@@ -23,6 +25,7 @@ services:
     shm_size: "2GB"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - dbdump:/media/dbdump:ro  # ✅ Volume partagé pour accéder aux dumps depuis PostgreSQL
     ports:
       - "5432:5432"
 
@@ -34,7 +37,8 @@ services:
         max-size: "50m"
         max-file: "50"
     volumes:
-      - dbdump:/media/dbdump
+      - dbdump:/media/dbdump:ro
+      - logs:/logs
     restart: unless-stopped
     env_file:
       - ./default/postgres.env

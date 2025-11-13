@@ -19,15 +19,15 @@ function Write-ColorOutput {
 function Show-MBLogs {
     <#
     .SYNOPSIS
-    Monitor MusicBrainz import progress in real-time
+    Monitor MusicBrainz container logs in real-time
     
     .DESCRIPTION
-    Follows the Docker logs to track import progress
+    Follows the Docker logs for the musicbrainz-db container
     
     .EXAMPLE
     Show-MBLogs
     #>
-    Write-ColorOutput "📊 Monitoring MusicBrainz import logs (Ctrl+C to exit)..." "Cyan"
+    Write-ColorOutput "📊 Monitoring MusicBrainz container logs (Ctrl+C to exit)..." "Cyan"
     docker logs -f musicbrainz-db
 }
 
@@ -96,48 +96,6 @@ FROM musicbrainz.release;
 "@
 }
 
-function Get-MBImportProgress {
-    <#
-    .SYNOPSIS
-    Check MusicBrainz import progress
-    
-    .DESCRIPTION
-    Shows table counts to estimate import progress
-    
-    .EXAMPLE
-    Get-MBImportProgress
-    #>
-    Write-ColorOutput "📊 MusicBrainz Import Progress" "Cyan"
-    docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c @"
-SELECT 
-    schemaname,
-    tablename,
-    n_tup_ins as inserted_rows
-FROM pg_stat_user_tables 
-WHERE schemaname = 'musicbrainz' 
-  AND n_tup_ins > 0
-ORDER BY n_tup_ins DESC 
-LIMIT 10;
-"@
-}
-
-function Get-MBImportStatus {
-    <#
-    .SYNOPSIS
-    Detailed diagnostic of MusicBrainz import status
-    
-    .DESCRIPTION
-    Comprehensive check of import progress with recommendations
-    
-    .EXAMPLE
-    Get-MBImportStatus
-    #>
-    if (Test-Path "scripts\check_import_status.ps1") {
-        & ".\scripts\check_import_status.ps1"
-    } else {
-        Write-ColorOutput "❌ Script check_import_status.ps1 not found" "Red"
-    }
-}
 
 # ============================================================================
 # DATABASE ACCESS
@@ -386,10 +344,8 @@ function Show-MBHelp {
     Write-ColorOutput "=====================================" "Green"
     
     Write-ColorOutput "`n🔍 Monitoring & Logs:" "Yellow"
-    Write-ColorOutput "  Show-MBLogs              - Monitor import logs in real-time" "White"
+    Write-ColorOutput "  Show-MBLogs              - Monitor container logs in real-time" "White"
     Write-ColorOutput "  Get-MBStatus             - Check container and database status" "White"
-    Write-ColorOutput "  Get-MBImportProgress     - Check import progress (top 10 tables)" "White"
-    Write-ColorOutput "  Get-MBImportStatus       - Detailed import diagnostic & recommendations" "White"
     
     Write-ColorOutput "`n🐚 Database Access:" "Yellow"
     Write-ColorOutput "  Enter-MBShell            - Open interactive psql shell" "White"
@@ -411,7 +367,7 @@ function Show-MBHelp {
     
     Write-ColorOutput "`n💡 Quick Start:" "Cyan"
     Write-ColorOutput "  1. Start-MBDocker" "White"
-    Write-ColorOutput "  2. Show-MBLogs (wait for import to complete, 2-6h)" "White"
+    Write-ColorOutput "  2. .\scripts\import_musicbrainz_official.ps1 (import complet)" "White"
     Write-ColorOutput "  3. Initialize-AllfeatKPI" "White"
     Write-ColorOutput "  4. Apply-KPIViews" "White"
     Write-ColorOutput "  5. Test-KPIViews" "White"

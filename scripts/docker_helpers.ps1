@@ -181,7 +181,7 @@ function Apply-KPIViews {
     Write-ColorOutput "📊 Applying KPI views..." "Cyan"
     
     if (Test-Path "scripts\apply_views.ps1") {
-        & ".\scripts\apply_views.ps1" -DB_HOST "127.0.0.1" -DB_PORT 5432 -DB_NAME "musicbrainz_db" -DB_USER "musicbrainz"
+        & ".\scripts\apply_views.ps1" -DB_CONTAINER "musicbrainz-db" -DB_NAME "musicbrainz_db" -DB_USER "musicbrainz"
     } else {
         Write-ColorOutput "❌ File scripts/apply_views.ps1 not found" "Red"
     }

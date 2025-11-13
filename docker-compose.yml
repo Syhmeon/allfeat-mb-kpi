@@ -2,7 +2,8 @@
 # Utilise directement les images MetaBrainz officielles (pas de build local nécessaire)
 
 volumes:
-  pgdata:
+  musicbrainzkpi_pgdata:
+    name: musicbrainzkpi_pgdata
     driver: local
   dbdump:
     driver: local
@@ -22,9 +23,13 @@ services:
     command: postgres -c "shared_buffers=2048MB"
     env_file:
       - ./default/postgres.env
+    environment:
+      - POSTGRES_USER=musicbrainz
+      - POSTGRES_PASSWORD=musicbrainz
+      - POSTGRES_DB=musicbrainz_db
     shm_size: "2GB"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - musicbrainzkpi_pgdata:/var/lib/postgresql/data
       - dbdump:/media/dbdump:ro  # ✅ Volume partagé pour accéder aux dumps depuis PostgreSQL
     ports:
       - "5432:5432"

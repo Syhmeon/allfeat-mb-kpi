@@ -32,7 +32,7 @@ services:
       - musicbrainzkpi_pgdata:/var/lib/postgresql/data
       - dbdump:/media/dbdump:ro  # ✅ Volume partagé pour accéder aux dumps depuis PostgreSQL
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
   musicbrainz:
     image: metabrainz/musicbrainz-docker-musicbrainz:${MUSICBRAINZ_SERVER_VERSION:-v-2025-10-13.0}-build${MUSICBRAINZ_BUILD_SEQUENCE:-1}

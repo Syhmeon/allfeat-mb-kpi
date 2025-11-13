@@ -29,7 +29,7 @@
    Nom de la source de données : MB_ODBC
    Serveur : 127.0.0.1
    Port : 5432
-   Base de données : musicbrainz
+   Base de données : musicbrainz_db
    Nom d'utilisateur : musicbrainz
    Mot de passe : musicbrainz
    ```
@@ -47,7 +47,7 @@
    - Sélectionner "MB_ODBC"
    - Entrer une requête SQL de test :
      ```sql
-     SELECT COUNT(*) as total_artists FROM musicbrainz.artist WHERE type = 1;
+     SELECT COUNT(*) as total_artists FROM musicbrainz.artist;
      ```
 
 3. **Importer les données** :
@@ -285,8 +285,8 @@ Pour automatiser le rafraîchissement :
 **Problème** : `[Microsoft][ODBC Driver Manager] Data source name not found`
 
 **Solutions** :
-- Vérifier que PostgreSQL est démarré (`docker compose up -d`)
-- Tester la connexion avec `psql -h 127.0.0.1 -U musicbrainz -d musicbrainz`
+- Vérifier que PostgreSQL est démarré (`docker compose ps`)
+- Tester la connexion avec `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT 1;"`
 - Vérifier que le pilote ODBC PostgreSQL est installé
 - Recréer la source de données ODBC
 
@@ -294,30 +294,30 @@ Pour automatiser le rafraîchissement :
 **Problème** : `Query took too long to execute`
 
 **Solutions** :
-- Vérifier que les vues KPI sont créées (`psql -f scripts/smoke_tests.sql`)
+- Vérifier que les vues KPI sont créées : `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT COUNT(*) FROM allfeat_kpi.kpi_isrc_coverage;"`
 - Optimiser les requêtes en ajoutant des filtres LIMIT
 - Ajouter des filtres LIMIT aux requêtes
-- Vérifier que les index existent : `\di` dans psql
+- Vérifier que les index existent : `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "\di"`
 
 #### 3. Données manquantes
 **Problème** : Aucune donnée affichée
 
 **Solutions** :
-- Vérifier que le dump MusicBrainz est importé
-- Exécuter `psql -f scripts/apply_views.sh`
-- Vérifier que les vues KPI sont créées
+- Vérifier que le dump MusicBrainz est importé : `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT COUNT(*) FROM musicbrainz.recording;"`
+- Exécuter `.\scripts\apply_views.ps1`
+- Vérifier que les vues KPI sont créées : `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT viewname FROM pg_views WHERE schemaname = 'allfeat_kpi';"`
 
 ### Commandes de test
 
-```bash
+```powershell
 # Test de connexion
-psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -c "SELECT version();"
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT version();"
 
 # Test des vues KPI
-psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -c "SELECT COUNT(*) FROM allfeat_kpi.kpi_isrc_coverage;"
+docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT COUNT(*) FROM allfeat_kpi.kpi_isrc_coverage;"
 
 # Tests complets
-psql -h 127.0.0.1 -U musicbrainz -d musicbrainz -f scripts/smoke_tests.sql
+Get-Content scripts\tests.sql | docker exec -i musicbrainz-db psql -U musicbrainz -d musicbrainz_db
 ```
 
 ## Logique de confiance Phase 1 + Phase 2

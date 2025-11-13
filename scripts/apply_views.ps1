@@ -10,8 +10,7 @@
 # - Gestion d'erreurs améliorée avec warnings au lieu d'arrêts
 
 param(
-    [string]$DB_HOST = "127.0.0.1",
-    [int]$DB_PORT = 5432,
+    [string]$DB_CONTAINER = "musicbrainz-db",
     [string]$DB_NAME = "musicbrainz_db",
     [string]$DB_USER = "musicbrainz",
     [string]$SQL_DIR = ".\sql"
@@ -27,9 +26,8 @@ Write-Host "🚀 Application des vues KPI Allfeat (Phase 1+2)..." -ForegroundCol
 # 1. Vérifier que PostgreSQL est accessible sur la base de données cible
 Write-Host "📡 Vérification de la connexion PostgreSQL sur $DB_NAME..." -ForegroundColor Yellow
 try {
-    $env:PGPASSWORD = "musicbrainz"
-    # Test direct sur la base de données cible, pas seulement postgres
-    $result = psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT 1;" 2>$null
+    # Test via docker exec
+    $result = docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -c "SELECT 1;" 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Connexion échouée sur $DB_NAME"
     }
@@ -44,31 +42,32 @@ try {
 Write-Host "🗄️  Vérification du schéma allfeat_kpi et table metadata..." -ForegroundColor Yellow
 try {
     # Vérifier que le schéma existe
-    $schemaCheck = psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT 1 FROM information_schema.schemata WHERE schema_name = 'allfeat_kpi';" 2>$null
+    $schemaCheck = docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -c "SELECT 1 FROM information_schema.schemata WHERE schema_name = 'allfeat_kpi';" 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Schéma allfeat_kpi introuvable"
     }
     
     # Vérifier que la table metadata existe
-    $tableCheck = psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT 1 FROM allfeat_kpi.metadata LIMIT 1;" 2>$null
+    $tableCheck = docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -c "SELECT 1 FROM allfeat_kpi.metadata LIMIT 1;" 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Table allfeat_kpi.metadata introuvable"
     }
     
     # Vérifier que la table metadata a une contrainte PRIMARY KEY ou UNIQUE sur 'key'
-    $constraintCheck = psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c @"
+    $constraintQuery = @"
 SELECT 1 FROM information_schema.table_constraints tc
 JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
 WHERE tc.table_schema = 'allfeat_kpi' 
   AND tc.table_name = 'metadata'
   AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE')
   AND ccu.column_name = 'key';
-"@ 2>$null
+"@
+    $constraintCheck = docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -c $constraintQuery 2>&1
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "⚠️  Table metadata sans contrainte PRIMARY KEY/UNIQUE sur 'key' - création d'une contrainte..." -ForegroundColor Yellow
         # Créer une contrainte UNIQUE si elle n'existe pas
-        psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "ALTER TABLE allfeat_kpi.metadata ADD CONSTRAINT metadata_key_unique UNIQUE (key);" 2>$null
+        docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -c "ALTER TABLE allfeat_kpi.metadata ADD CONSTRAINT metadata_key_unique UNIQUE (key);" 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "⚠️  Impossible de créer la contrainte UNIQUE - utilisation d'INSERT simple" -ForegroundColor Yellow
         }
@@ -77,7 +76,7 @@ WHERE tc.table_schema = 'allfeat_kpi'
     Write-Host "✅ Schéma allfeat_kpi et table metadata vérifiés" -ForegroundColor Green
 } catch {
     Write-Host "❌ Le schéma allfeat_kpi ou la table metadata n'existent pas." -ForegroundColor Red
-    Write-Host "💡 Exécutez d'abord: psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f sql/init/00_schema.sql" -ForegroundColor Cyan
+    Write-Host "💡 Exécutez d'abord: Get-Content sql\init\00_schema.sql | docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME" -ForegroundColor Cyan
     exit 1
 }
 
@@ -106,7 +105,7 @@ foreach ($view in $views) {
     if (Test-Path $viewPath) {
         Write-Host "  - Application de $view..." -ForegroundColor Cyan
         try {
-            psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $viewPath
+            Get-Content $viewPath | docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME
             if ($LASTEXITCODE -ne 0) {
                 throw "Erreur lors de l'application de $view"
             }
@@ -140,7 +139,7 @@ WHERE NOT EXISTS (SELECT 1 FROM allfeat_kpi.metadata WHERE key = 'views_applied_
 "@
 
 try {
-    psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c $updateQuery
+    docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -c $updateQuery | Out-Null
     if ($LASTEXITCODE -eq 0) {
         $metadataUpdateSuccess = $true
         Write-Host "✅ Métadonnées mises à jour avec succès" -ForegroundColor Green
@@ -155,7 +154,7 @@ try {
 # 5. Lister les vues créées
 Write-Host "📋 Vues KPI créées:" -ForegroundColor Green
 try {
-    psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c @"
+    $listViewsQuery = @"
 SELECT 
     schemaname, 
     viewname,
@@ -167,6 +166,7 @@ FROM pg_views
 WHERE schemaname = 'allfeat_kpi' 
 ORDER BY viewname;
 "@
+    docker exec $DB_CONTAINER psql -U $DB_USER -d $DB_NAME -c $listViewsQuery
 } catch {
     Write-Host "⚠️  Impossible de lister les vues" -ForegroundColor Yellow
 }
@@ -178,9 +178,9 @@ $testsPath = Join-Path "scripts" "tests.sql"
 if (Test-Path $testsPath) {
     try {
         Write-Host "  - Exécution de scripts/tests.sql..." -ForegroundColor Cyan
-        $testsResult = psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f $testsPath
+        Get-Content $testsPath | docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME
         if ($LASTEXITCODE -eq 0) {
-            $testsSuccess = $true
+            $smokeTestsSuccess = $true
             Write-Host "    ✅ Tests réussis" -ForegroundColor Green
         } else {
             Write-Host "    ❌ Tests échoués" -ForegroundColor Red

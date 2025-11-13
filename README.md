@@ -11,9 +11,9 @@ Le schéma `allfeat_kpi` regroupe 10+ vues de référence (ISRC, ISWC, identifia
 ## ⚙️ Architecture
 
 ```
-MusicBrainz Docker (v30)
-     ↓  import auto (2–6 h)
-PostgreSQL 15 (musicbrainz_db)
+MusicBrainz Docker (officiel MetaBrainz)
+     ↓  import auto (3–6 h)
+PostgreSQL 16 (musicbrainz_db)
      ↓
 Schéma allfeat_kpi  →  Excel/ODBC (Power Query)
 ```
@@ -34,21 +34,28 @@ Schéma allfeat_kpi  →  Excel/ODBC (Power Query)
 
 Le script :
 1. vérifie Docker et l’espace disque,  
-2. importe la base MusicBrainz (2–6 h),  
-3. crée le schéma `allfeat_kpi`,  
-4. applique les 10 vues KPI,  
-5. exécute les tests de validation.
+2. démarre les conteneurs (db, musicbrainz, redis),  
+3. migre les dumps existants si nécessaire,  
+4. importe la base MusicBrainz complète via `createdb.sh` (3–6 h),  
+5. crée le schéma `allfeat_kpi`,  
+6. applique les 10+ vues KPI,  
+7. exécute les tests de validation.
 
 ---
 
 ## 🧭 Workflow de référence
 
-1. **Import automatique** du dump via `musicbrainz/musicbrainz-server:v30`
-2. **Vérification** du volume de données (`recording > 50 M`)
-3. **Création du schéma KPI** : `sql/init/00_schema.sql`
-4. **Application des vues** : `scripts/apply_views.ps1`
-5. **Tests unifiés** : `scripts/tests.sql`
-6. **Connexion Excel/ODBC** pour analyse Power Query
+1. **Démarrage automatique** : `.\quick_start_docker.ps1`
+   - Démarre les conteneurs Docker (db, musicbrainz, redis)
+   - Migre les dumps existants vers le volume partagé si nécessaire
+2. **Import automatique** : `scripts/import_musicbrainz_official.ps1`
+   - Utilise `createdb.sh` (script officiel MetaBrainz)
+   - Import complet depuis `/media/dbdump` (3–6 h)
+3. **Vérification** : Volume de données (`recording > 36 M`, base ~26 GB)
+4. **Création du schéma KPI** : `sql/init/00_schema.sql`
+5. **Application des vues** : `scripts/apply_views.ps1`
+6. **Tests unifiés** : `scripts/tests.sql`
+7. **Connexion Excel/ODBC** pour analyse Power Query
 
 ---
 
@@ -86,10 +93,10 @@ SELECT * FROM allfeat_kpi.confidence_artist;
 
 | Action | Commande |
 |---------|-----------|
-| Mettre à jour MusicBrainz | `docker compose pull && docker compose up -d` |
-| Vérifier l’état | `. .\scripts\docker_helpers.ps1; Get-MBStatus` |
-| Sauvegarder le schéma KPI | `pg_dump -n allfeat_kpi musicbrainz_db > kpi_backup.sql` |
-| Rafraîchir statistiques | `ANALYZE;` |
+| Vérifier l'état | `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT COUNT(*) FROM musicbrainz.recording;"` |
+| Vérifier la taille | `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "SELECT pg_size_pretty(pg_database_size('musicbrainz_db'));"` |
+| Sauvegarder le schéma KPI | `docker exec musicbrainz-db pg_dump -U musicbrainz -n allfeat_kpi musicbrainz_db > kpi_backup.sql` |
+| Rafraîchir statistiques | `docker exec musicbrainz-db psql -U musicbrainz -d musicbrainz_db -c "ANALYZE;"` |
 
 ---
 
@@ -105,11 +112,12 @@ SELECT * FROM allfeat_kpi.confidence_artist;
 
 ## 📚 Documentation et support
 
-- `excel/PowerQuery_guide.md` – Connexion Excel/ODBC  
-- `docs/ODBC_Windows_guide.md` – Configuration ODBC  
-- `scripts/tests.sql` – Tests unifiés  
-- `Cursor-Rules/00–02.mdc` – Contexte minimal Cursor  
-- `docs/CHANGELOG.md` – Historique des versions  
+- `excel/PowerQuery_guide.md` – Connexion Excel/ODBC et requêtes Power Query  
+- `Doc/OU_SONT_LES_DONNEES.md` – Emplacement des volumes Docker et accès aux données  
+- `scripts/tests.sql` – Tests unifiés de validation  
+- `.cursor/rules/00-CONTEXTE.mdc` – Contexte du projet (Cursor)  
+- `.cursor/rules/01-WORKFLOW.mdc` – Workflow de référence (Cursor)  
+- `.cursor/rules/02-ARCHITECTURE.mdc` – Architecture Docker (Cursor)  
 
 **Contact :** via issues GitHub du projet Allfeat.
 
